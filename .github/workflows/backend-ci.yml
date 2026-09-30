@@ -12,7 +12,7 @@ on:
 
 defaults:
   run:
-    working-directory: ./backend
+    working-directory: backend
 
 jobs:
   scan_ruby:
@@ -25,7 +25,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          working-directory: ./backend
+          working-directory: backend
           bundler-cache: true
 
       - name: Scan for common Rails security vulnerabilities using static analysis
@@ -45,7 +45,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          working-directory: ./backend
+          working-directory: backend
           bundler-cache: true
 
       - name: Prepare RuboCop cache
@@ -90,7 +90,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          working-directory: ./backend
+          working-directory: backend
           bundler-cache: true
 
       - name: Run tests
