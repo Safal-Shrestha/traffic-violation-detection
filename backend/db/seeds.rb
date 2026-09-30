@@ -1,9 +1,9 @@
-# This file should ensure the existence of records required to run the application in every environment (production,
-# development, test). The code here should be idempotent so that it can be executed at any point in every environment.
-# The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
-#
-# Example:
-#
-#   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
-#     MovieGenre.find_or_create_by!(name: genre_name)
-#   end
+# Seed data for violation_types (MVP set). Idempotent; uses raw SQL so it works before models exist.
+# TODO: replace the placeholder fine amounts (0) with the official NPR figures before use.
+ActiveRecord::Base.connection.execute(<<~SQL)
+  INSERT INTO violation_types (code, name, description, fine_amount_npr) VALUES
+    ('RED_LIGHT', 'Red Light Violation', 'Vehicle crossed the stop line while the signal was red, after the grace period.', 50),
+    ('STOP_LINE', 'Stop Line Violation', 'Vehicle stopped beyond the stop line or encroached past it.', 1000),
+    ('NO_HELMET', 'Helmet Violation',    'Two-wheeler rider detected without a helmet.', 5000)
+  ON CONFLICT (code) DO NOTHING;
+SQL

@@ -1,0 +1,2 @@
+class ViolationAuditLog < ApplicationRecord
+end
