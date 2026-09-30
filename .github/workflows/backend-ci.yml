@@ -1,9 +1,14 @@
-name: CI
+name: Backend CI
 
 on:
-  pull_request:
   push:
-    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/ci.yml'
 
 defaults:
   run:
@@ -20,6 +25,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
+          working-directory: ./backend
           bundler-cache: true
 
       - name: Scan for common Rails security vulnerabilities using static analysis
@@ -39,6 +45,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
+          working-directory: ./backend
           bundler-cache: true
 
       - name: Prepare RuboCop cache
@@ -83,6 +90,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
+          working-directory: ./backend
           bundler-cache: true
 
       - name: Run tests
