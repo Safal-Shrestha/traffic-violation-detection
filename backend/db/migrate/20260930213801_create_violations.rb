@@ -24,11 +24,11 @@ class CreateViolations < ActiveRecord::Migration[8.1]
       t.timestamptz :created_at, null: false, default: -> { "now()" }
 
       # Review queue: pending violations, newest first.
-      t.index [:status, :occurred_at], order: { occurred_at: :desc }, name: "idx_violations_status_occurred"
+      t.index [ :status, :occurred_at ], order: { occurred_at: :desc }, name: "idx_violations_status_occurred"
       # Per-camera history.
-      t.index [:camera_id, :occurred_at], order: { occurred_at: :desc }, name: "idx_violations_camera_occurred"
+      t.index [ :camera_id, :occurred_at ], order: { occurred_at: :desc }, name: "idx_violations_camera_occurred"
       # Deduplication: one violation per tracked vehicle, per type, per worker session.
-      t.index [:camera_id, :session_id, :track_id, :violation_type_id],
+      t.index [ :camera_id, :session_id, :track_id, :violation_type_id ],
               unique: true,
               where: "track_id IS NOT NULL AND session_id IS NOT NULL",
               name: "uq_violations_dedup"

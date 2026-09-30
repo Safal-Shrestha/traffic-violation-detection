@@ -12,7 +12,7 @@ class CreateEvidence < ActiveRecord::Migration[8.1]
       t.column  :checksum_sha256, "char(64)", null: false
       t.timestamptz :created_at, null: false, default: -> { "now()" }
 
-      t.index [:storage_provider, :storage_key], unique: true, name: "uq_evidence_storage"
+      t.index [ :storage_provider, :storage_key ], unique: true, name: "uq_evidence_storage"
 
       t.check_constraint "media_type IN ('IMAGE', 'VIDEO')", name: "evidence_media_type_check"
       t.check_constraint "evidence_role IN ('FULL_FRAME', 'PLATE_CROP', 'CLIP')", name: "evidence_role_check"

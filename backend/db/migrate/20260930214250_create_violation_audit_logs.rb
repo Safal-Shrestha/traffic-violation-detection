@@ -7,7 +7,7 @@ class CreateViolationAuditLogs < ActiveRecord::Migration[8.1]
       t.text :notes
       t.timestamptz :created_at, null: false, default: -> { "now()" }
 
-      t.index [:violation_id, :created_at], name: "idx_violation_audit_violation_created"
+      t.index [ :violation_id, :created_at ], name: "idx_violation_audit_violation_created"
       t.check_constraint "action IN ('CREATED', 'CONFIRMED', 'REJECTED', 'REOPENED', 'VEHICLE_LINKED', 'NOTE_ADDED')", name: "violation_audit_logs_action_check"
     end
 
