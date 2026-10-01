@@ -1,0 +1,15 @@
+# .github/CODEOWNERS
+
+# Backend Rails API Owners
+/backend/                 @Safal-Shrestha
+
+# Edge Node Python Owners
+/worker/                  @bipin-thapa01 @Safal-Shrestha
+
+# Frontend React Owners
+/frontend/                @Jwala-Joshi
+
+# Shared Infrastructure & CI
+/infrastructre/           @Safal-Shrestha
+/docker-compose.yml       @Safal-Shrestha @bipin-thapa01 @Jwala-Joshi
+/.github/                 @Safal-Shrestha
