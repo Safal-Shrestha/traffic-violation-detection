@@ -1,4 +1,8 @@
-webrtcAdditionalHosts: [localhost]
+# webrtcAdditionalHosts is controlled via the .env file (MTX_WEBRTCADDITIONALHOSTS)
+# webrtcAdditionalHosts: []
+webrtcAddress: :8889
 webrtcAllowOrigins: ['*']
+webrtcLocalUDPAddress: :8189
+hslAddress: :8888
 paths:
   all_others:

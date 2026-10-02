@@ -10,6 +10,8 @@ services:
     image: bluenviron/mediamtx:latest-ffmpeg   # pin a version once it works
     ports: ["8554:8554", "8889:8889", "8189:8189/udp", "8888:8888"]
     volumes: ["./mediamtx.yml:/mediamtx.yml"]
+    env_file:
+      - .env
     restart: unless-stopped
 
   sim-cam1:
@@ -17,13 +19,13 @@ services:
     command: >
       -re -stream_loop -1 -i /videos/junction1.mp4
       -c:v libx264 -preset veryfast -tune zerolatency -g 30 -bf 0 -an
-      -f rtsp -rtsp_transport tcp rtsp://mediamtx:8554/cam1/in
+      -f rtsp -rtsp_transport tcp rtsp://mediamtx:8554/camera-1-raw
 
   sim-cam2:
     <<: *sim
     command: >
       -re -stream_loop -1 -i /videos/junction2.mp4
       -c:v libx264 -preset veryfast -tune zerolatency -g 30 -bf 0 -an
-      -f rtsp -rtsp_transport tcp rtsp://mediamtx:8554/cam2/in
+      -f rtsp -rtsp_transport tcp rtsp://mediamtx:8554/camera-2-raw
 
   # sim-cam3 and sim-cam4: same pattern
