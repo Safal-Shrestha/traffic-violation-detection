@@ -1,0 +1,16 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# CPU-only PyTorch builds
+torch>=2.1
+torchvision>=0.16
+
+# Core application dependencies
+flask>=3.0
+ultralytics>=8.3
+easyocr>=1.7.1
+opencv-python-headless>=4.8
+numpy>=1.24
+lapx>=0.5.5         # required by ByteTrack / BoT-SORT trackers
+
+# Optional, for production serving:
+# gunicorn>=22.0
