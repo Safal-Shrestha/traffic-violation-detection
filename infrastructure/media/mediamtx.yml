@@ -1,4 +1,26 @@
-webrtcAdditionalHosts: [localhost]
+# webrtcAdditionalHosts is controlled via the .env file (MTX_WEBRTCADDITIONALHOSTS)
+# webrtcAdditionalHosts: []
+webrtcAddress: :8889
 webrtcAllowOrigins: ['*']
+webrtcLocalUDPAddress: :8189
+hlsAddress: :8888
+
+api: yes
+apiAddress: :9997
+
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: publish
+      - action: read
+      - action: playback
+  - user: worker
+    pass: change-me
+    ips: []            # a LAN filter can fail behind Docker NAT; the isolated defense network is the boundary
+    permissions:
+      - action: api
+
 paths:
   all_others:

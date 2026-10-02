@@ -11,6 +11,7 @@ easyocr>=1.7.1
 opencv-python-headless>=4.8
 numpy>=1.24
 lapx>=0.5.5         # required by ByteTrack / BoT-SORT trackers
+python-dotenv>=1.2.4
 
 # Optional, for production serving:
 # gunicorn>=22.0
