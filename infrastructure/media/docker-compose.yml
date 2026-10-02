@@ -8,7 +8,7 @@ x-sim: &sim
 services:
   mediamtx:
     image: bluenviron/mediamtx:latest-ffmpeg   # pin a version once it works
-    ports: ["8554:8554", "8889:8889", "8189:8189/udp", "8888:8888"]
+    ports: ["8554:8554", "8889:8889", "8189:8189/udp", "8888:8888", "9997:9997"]
     volumes: ["./mediamtx.yml:/mediamtx.yml"]
     env_file:
       - .env
