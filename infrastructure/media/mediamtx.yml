@@ -1,0 +1,4 @@
+webrtcAdditionalHosts: [localhost]
+webrtcAllowOrigins: ['*']
+paths:
+  all_others:
