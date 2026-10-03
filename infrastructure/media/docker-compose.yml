@@ -1,5 +1,5 @@
 x-sim: &sim
-  image: linuxserver/ffmpeg:latest
+  image: linuxserver/ffmpeg:9.0-cli-ls84
   depends_on: [mediamtx]
   restart: unless-stopped
   entrypoint: ["ffmpeg"]
@@ -7,7 +7,7 @@ x-sim: &sim
 
 services:
   mediamtx:
-    image: bluenviron/mediamtx:latest-ffmpeg   # pin a version once it works
+    image: bluenviron/mediamtx:1-ffmpeg
     ports: ["8554:8554", "8889:8889", "8189:8189/udp", "8888:8888", "9997:9997"]
     volumes: ["./mediamtx.yml:/mediamtx.yml"]
     env_file:
