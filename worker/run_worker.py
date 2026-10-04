@@ -30,6 +30,8 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 import cv2
+import easyocr
+import torch
 from ultralytics import YOLO
 
 load_dotenv()
@@ -40,7 +42,11 @@ MEDIAMTX_URL = os.getenv("MEDIAMTX_URL", "rtsp://localhost:8554")
 INPUT_URL = os.getenv("INPUT_URL", f"{MEDIAMTX_URL}/{CAMERA_ID}-raw")
 OUTPUT_URL = os.getenv("OUTPUT_URL", f"{MEDIAMTX_URL}/{CAMERA_ID}-annotated")
 MODEL_PATH = os.getenv("MODEL_PATH", "vehicle_best.pt")
+PLATE_MODEL_PATH = os.getenv("PLATE_MODEL_PATH", "plate_best.pt")
 CONF = float(os.getenv("CONF", "0.4"))
+PLATE_CONF = float(os.getenv("PLATE_CONF", "0.25"))
+OCR_LANGS = os.getenv("OCR_LANGS", "en").split(",")
+OCR_ALLOWLIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 DEVICE = os.getenv("DEVICE") or None                  # "0" for CUDA, "cpu", or None for auto
 PUBLISH_WIDTH = int(os.getenv("PUBLISH_WIDTH", "0"))  # 0 = keep source width
 
@@ -65,6 +71,28 @@ logging.basicConfig(
 )
 log = logging.getLogger("worker")
 stop_event = threading.Event()
+
+
+class DetectionState:
+    """Thread-safe latest detection event exposed by the worker control API."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._latest = None
+
+    def replace(self, event):
+        with self._lock:
+            self._latest = event
+
+    def latest(self):
+        with self._lock:
+            return self._latest
+
+
+detection_state = DetectionState()
+plate_cache = {}
+plate_lock = threading.Lock()
+ocr_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------- MediaMTX control API
@@ -210,7 +238,8 @@ class ViewerGate:
 # ---------------------------------------------------------------- control server
 class ControlHandler(BaseHTTPRequestHandler):
     """GET /viewer/hold  long-lived; open while MediaMTX reports readers (runOnDemand)
-       GET /health       JSON status"""
+       GET /health       JSON status
+       GET /detections/latest  latest vehicle and plate-recognition JSON"""
 
     def do_GET(self):
         server = self.server
@@ -238,6 +267,22 @@ class ControlHandler(BaseHTTPRequestHandler):
             }).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif self.path.startswith("/detections/latest"):
+            body = json.dumps(
+                detection_state.latest() or {
+                    "camera_id": CAMERA_ID,
+                    "status": "no detections processed yet",
+                    "fibonacci_track_ids": [],
+                    "fibonacci_tracks": [],
+                    "tracks": [],
+                }
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-cache")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -390,20 +435,94 @@ class Publisher(threading.Thread):
 
 
 # ---------------------------------------------------------------- pipeline
+def preprocess_for_ocr(crop):
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+    if h < 64: # upscale small plates, OCR does much better
+        scale = 64 / h
+        gray = cv2.resize(gray, (int(w * scale), 64), interpolation=cv2.INTER_CUBIC)
+    return cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4)).apply(gray)
+
+
+def recognize_plate(frame, vehicle_box, plate_model, ocr_reader):
+    """Run plate detection and OCR for one tracked vehicle crop."""
+    height, width = frame.shape[:2]
+    x1, y1, x2, y2 = vehicle_box
+    x1, x2 = max(0, min(width, int(x1))), max(0, min(width, int(x2)))
+    y1, y2 = max(0, min(height, int(y1))), max(0, min(height, int(y2)))
+    vehicle_bbox = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+    if x2 <= x1 or y2 <= y1:
+        return {"vehicle_bbox": vehicle_bbox, "plates": []}
+
+    vehicle_crop = frame[y1:y2, x1:x2]
+    with plate_lock:
+        result = plate_model.predict(
+            vehicle_crop, conf=PLATE_CONF, device=DEVICE, verbose=False
+        )[0]
+
+    plates = []
+    if result.boxes is None or len(result.boxes) == 0:
+        return {"vehicle_bbox": vehicle_bbox, "plates": plates}
+
+    boxes = result.boxes.xyxy.cpu().numpy()
+    confidences = result.boxes.conf.cpu().numpy()
+    for (px1, py1, px2, py2), plate_confidence in sorted(
+        zip(boxes, confidences), key=lambda item: -item[1]
+    ):
+        cx1, cy1 = max(0, int(px1)), max(0, int(py1))
+        cx2, cy2 = min(vehicle_crop.shape[1], int(px2)), min(vehicle_crop.shape[0], int(py2))
+        plate_crop = vehicle_crop[cy1:cy2, cx1:cx2]
+        if plate_crop.size == 0:
+            continue
+
+        with ocr_lock:
+            ocr_results = ocr_reader.readtext(
+                preprocess_for_ocr(plate_crop),
+                allowlist=OCR_ALLOWLIST,
+                detail=1,
+                paragraph=False,
+            )
+        parts = [
+            {"text": text.upper().replace(" ", ""), "confidence": round(float(confidence), 4)}
+            for _, text, confidence in ocr_results
+        ]
+        plates.append({
+            "plate_text": "".join(part["text"] for part in parts),
+            "ocr_confidence": round(
+                sum(part["confidence"] for part in parts) / len(parts), 4
+            ) if parts else 0.0,
+            "detection_confidence": round(float(plate_confidence), 4),
+            "plate_bbox": {
+                "x1": round(float(px1) + x1, 2),
+                "y1": round(float(py1) + y1, 2),
+                "x2": round(float(px2) + x1, 2),
+                "y2": round(float(py2) + y1, 2),
+            },
+            "ocr_parts": parts,
+        })
+
+    return {"vehicle_bbox": vehicle_bbox, "plates": plates}
+
+
 def extract_tracks(result):
     """Convert an ultralytics result into plain dicts for the rule engine."""
     boxes = result.boxes
     if boxes is None or boxes.id is None:
         return []
     return [
-        {"id": int(i), "cls": result.names[int(c)], "conf": float(s), "xyxy": xy}
+        {
+            "id": int(i),
+            "cls": result.names[int(c)],
+            "conf": round(float(s), 4),
+            "xyxy": [round(float(value), 2) for value in xy],
+        }
         for i, c, s, xy in zip(
             boxes.id.tolist(), boxes.cls.tolist(), boxes.conf.tolist(), boxes.xyxy.tolist()
         )
     ]
 
 
-def handle_frame(tracks, frame, ts):
+def handle_frame(tracks, frame, ts, frame_seq, plate_model, ocr_reader):
     """Rule engine hook. Runs on EVERY frame, whether or not anyone is watching.
 
     `frame` is the raw, unannotated frame. Take evidence snapshots and clips from it,
@@ -413,11 +532,27 @@ def handle_frame(tracks, frame, ts):
       signal state provider -> red-light rule (per-track state machine)
       -> evidence ring buffer -> plate OCR on violating tracks -> outbox/POST.
     """
-    return
+    for track in tracks:
+        # Dummy rule to invoke plate reading
+        if (track["id"]%15)==0:
+            continue
+        if track["id"] not in plate_cache:
+            plate_cache[track["id"]] = recognize_plate(
+                frame, track["xyxy"], plate_model, ocr_reader
+            )
+        track["plate_recognition"] = plate_cache[track["id"]]
+
+    detection_state.replace({
+        "camera_id": CAMERA_ID,
+        "timestamp_unix": round(ts, 3),
+        "frame_sequence": frame_seq,
+        "tracks": tracks,
+    })
 
 
 def reset_tracker(model):
     """Clear ByteTrack state after a stream reconnect so IDs do not carry over."""
+    plate_cache.clear()
     try:
         for t in model.predictor.trackers:
             t.reset()
@@ -431,6 +566,9 @@ def main():
 
     log.info("loading model %s", MODEL_PATH)
     model = YOLO(MODEL_PATH)
+    log.info("loading plate model %s", PLATE_MODEL_PATH)
+    plate_model = YOLO(PLATE_MODEL_PATH)
+    ocr_reader = easyocr.Reader(OCR_LANGS, gpu=torch.cuda.is_available())
 
     grabber = FrameGrabber(INPUT_URL)
     publisher = Publisher(OUTPUT_URL)
@@ -476,7 +614,14 @@ def main():
             frame, persist=True, tracker="bytetrack.yaml",
             conf=CONF, device=DEVICE, verbose=False,
         )[0]
-        handle_frame(extract_tracks(result), frame, time.time())
+        handle_frame(
+            extract_tracks(result),
+            frame,
+            time.time(),
+            last_seq,
+            plate_model,
+            ocr_reader,
+        )
 
         # Annotated branch: only while someone is watching.
         publisher.set_enabled(FORCE_PUBLISH or gate.active)
