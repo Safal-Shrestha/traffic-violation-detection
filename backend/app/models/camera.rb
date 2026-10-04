@@ -15,6 +15,7 @@ class Camera < ApplicationRecord
   validates :name,           presence: true, length: { maximum: 100 }
   validates :raw_stream_key, presence: true, length: { maximum: 255 }, uniqueness: true
   validates :output_stream_key, length: { maximum: 255 }, uniqueness: true, allow_nil: true
+  validates :signal_state_key, length: { maximum: 255 }, uniqueness: true, allow_nil: true
   validates :frame_width, :frame_height, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :red_grace_seconds, numericality: { greater_than_or_equal_to: 0 }
   validate  :stop_line_must_be_valid
@@ -51,6 +52,11 @@ class Camera < ApplicationRecord
   # Unique indexes treat '' as a value, so blank keys are stored as NULL.
   def normalize_blank_keys
     self.output_stream_key = output_stream_key.to_s.strip.presence
+  end
+
+  # Unique indexes treat '' as a value, so blank keys are stored as NULL.
+  def normalize_blank_keys
+    self.signal_state_key = signal_state_key.to_s.strip.presence
   end
 
   # Mirrors the DB checks and adds geometry validation the database cannot express.

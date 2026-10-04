@@ -15,6 +15,7 @@ class CreateCameras < ActiveRecord::Migration[8.1]
 
       t.string :raw_stream_key, limit: 255, null: false # simulated RTSP source consumed by the worker
       t.string :output_stream_key, limit: 255              # annotated stream the frontend subscribes to
+      t.string :signal_state_key, limit: 255 # current traffic signal state simulated in worker
 
       t.string      :worker_status, limit: 20, null: false, default: "STOPPED"
       t.timestamptz :last_heartbeat
