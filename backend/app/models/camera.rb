@@ -7,7 +7,6 @@ class Camera < ApplicationRecord
   enum :status,        { active: "ACTIVE", inactive: "INACTIVE", maintenance: "MAINTENANCE" }, validate: true
   enum :worker_status, { stopped: "STOPPED", starting: "STARTING", running: "RUNNING", error: "ERROR" },
        prefix: :worker, validate: true
-  enum :signal_state,  { red: "RED", yellow: "YELLOW", green: "GREEN" }, prefix: :signal, validate: true
 
   has_many :violations, inverse_of: :camera, dependent: :restrict_with_error
 
@@ -33,11 +32,6 @@ class Camera < ApplicationRecord
     attrs = { last_heartbeat: Time.current }
     attrs[:worker_status] = status if status
     update!(attrs)
-  end
-
-  # Simulated traffic light: called by the dashboard control, read by the worker.
-  def change_signal!(state)
-    update!(signal_state: state, signal_updated_at: Time.current)
   end
 
   def red_elapsed_seconds
