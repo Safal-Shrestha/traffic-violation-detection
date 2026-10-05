@@ -3,13 +3,12 @@
 class ViolationAuditLog < ApplicationRecord
   self.table_name = "violation_audit_logs"
 
+  ACTIONS = %w[CREATED CONFIRMED REJECTED REOPENED VEHICLE_LINKED VEHICLE_PROPOSED VEHICLE_PROPOASL_REJECTED NOTE_ADDED]
+
   belongs_to :violation, inverse_of: :audit_logs
   belongs_to :officer, optional: true, inverse_of: :audit_logs # NULL for system actions
 
-  enum :action, {
-    created: "CREATED", confirmed: "CONFIRMED", rejected: "REJECTED",
-    reopened: "REOPENED", vehicle_linked: "VEHICLE_LINKED", vehicle_proposed: "VEHICLE_PROPOSED", vehicle_proposal_rejected: "VEHICLE_PROPOSAL_REJECTED", note_added: "NOTE_ADDED"
-  }, validate: true
+  validates :action, inclusion: { in: ACTIONS }
 
   scope :chronological, -> { order(:created_at, :id) }
 
