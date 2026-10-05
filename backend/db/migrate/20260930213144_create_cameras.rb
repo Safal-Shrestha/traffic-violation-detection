@@ -15,11 +15,11 @@ class CreateCameras < ActiveRecord::Migration[8.1]
 
       t.string :raw_stream_key, limit: 255, null: false # simulated RTSP source consumed by the worker
       t.string :output_stream_key, limit: 255              # annotated stream the frontend subscribes to
+      t.string :signal_state_key, limit: 255 # current traffic signal state simulated in worker
 
       t.string      :worker_status, limit: 20, null: false, default: "STOPPED"
       t.timestamptz :last_heartbeat
 
-      t.string      :signal_state, limit: 10, null: false, default: "GREEN"
       t.timestamptz :signal_updated_at
       t.decimal     :red_grace_seconds, precision: 3, scale: 1, null: false, default: 0
 
@@ -33,7 +33,6 @@ class CreateCameras < ActiveRecord::Migration[8.1]
       t.check_constraint "frame_width > 0", name: "cameras_frame_width_check"
       t.check_constraint "frame_height > 0", name: "cameras_frame_height_check"
       t.check_constraint "worker_status IN ('STOPPED', 'STARTING', 'RUNNING', 'ERROR')", name: "cameras_worker_status_check"
-      t.check_constraint "signal_state IN ('RED', 'YELLOW', 'GREEN')", name: "cameras_signal_state_check"
       t.check_constraint "red_grace_seconds >= 0", name: "cameras_red_grace_check"
       t.check_constraint "status IN ('ACTIVE', 'INACTIVE', 'MAINTENANCE')", name: "cameras_status_check"
       # A stop line is meaningless without its reference frame size.

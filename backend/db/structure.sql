@@ -67,22 +67,20 @@ CREATE TABLE public.cameras (
     municipality character varying(100),
     raw_stream_key character varying(255) NOT NULL,
     output_stream_key character varying(255),
+    signal_state_key character varying(255),
     worker_status character varying(20) DEFAULT 'STOPPED'::character varying NOT NULL,
     last_heartbeat timestamp with time zone,
-    signal_state character varying(10) DEFAULT 'GREEN'::character varying NOT NULL,
-    signal_updated_at timestamp with time zone,
     red_grace_seconds numeric(3,1) DEFAULT 0.0 NOT NULL,
     status character varying(20) DEFAULT 'ACTIVE'::character varying NOT NULL,
     installed_at date,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    config_version integer DEFAULT 1 NOT NULL,
     CONSTRAINT cameras_frame_height_check CHECK ((frame_height > 0)),
     CONSTRAINT cameras_frame_width_check CHECK ((frame_width > 0)),
     CONSTRAINT cameras_red_grace_check CHECK ((red_grace_seconds >= (0)::numeric)),
-    CONSTRAINT cameras_signal_state_check CHECK (((signal_state)::text = ANY ((ARRAY['RED'::character varying, 'YELLOW'::character varying, 'GREEN'::character varying])::text[]))),
-    CONSTRAINT cameras_status_check CHECK (((status)::text = ANY ((ARRAY['ACTIVE'::character varying, 'INACTIVE'::character varying, 'MAINTENANCE'::character varying])::text[]))),
-    CONSTRAINT cameras_stop_line_requires_frame CHECK (((stop_line IS NULL) OR ((frame_width IS NOT NULL) AND (frame_height IS NOT NULL)))),
+    CONSTRAINT cameras_status_check CHECK (((status)::text = ANY (ARRAY[('ACTIVE'::character varying)::text, ('INACTIVE'::character varying)::text, ('MAINTENANCE'::character varying)::text]))),
     CONSTRAINT cameras_stop_line_shape CHECK (((stop_line IS NULL) OR (jsonb_exists(stop_line, 'p1'::text) AND jsonb_exists(stop_line, 'p2'::text)))),
-    CONSTRAINT cameras_worker_status_check CHECK (((worker_status)::text = ANY ((ARRAY['STOPPED'::character varying, 'STARTING'::character varying, 'RUNNING'::character varying, 'ERROR'::character varying])::text[])))
+    CONSTRAINT cameras_worker_status_check CHECK (((worker_status)::text = ANY (ARRAY[('STOPPED'::character varying)::text, ('STARTING'::character varying)::text, ('RUNNING'::character varying)::text, ('ERROR'::character varying)::text])))
 );
 
 
@@ -95,18 +93,22 @@ CREATE TABLE public.evidence (
     violation_id uuid NOT NULL,
     media_type character varying(10) NOT NULL,
     evidence_role character varying(20) NOT NULL,
-    storage_key character varying(512) NOT NULL,
+    content_type character varying(100) DEFAULT 'application/octet-stream'::character varying NOT NULL,
+    string character varying(100) DEFAULT 'application/octet-stream'::character varying NOT NULL,
+    storage_key character varying(512) DEFAULT '0'::character varying NOT NULL,
     storage_provider character varying(20) NOT NULL,
-    file_size_byte bigint,
+    file_size_byte bigint NOT NULL,
     duration_seconds numeric(6,2),
     checksum_sha256 character(64) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT evidence_checksum_check CHECK ((checksum_sha256 ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT evidence_duration_check CHECK ((duration_seconds >= (0)::numeric)),
     CONSTRAINT evidence_duration_video_only CHECK ((((media_type)::text = 'VIDEO'::text) OR (duration_seconds IS NULL))),
-    CONSTRAINT evidence_media_type_check CHECK (((media_type)::text = ANY ((ARRAY['IMAGE'::character varying, 'VIDEO'::character varying])::text[]))),
-    CONSTRAINT evidence_provider_check CHECK (((storage_provider)::text = ANY ((ARRAY['S3'::character varying, 'MINIO'::character varying, 'GCS'::character varying])::text[]))),
-    CONSTRAINT evidence_role_check CHECK (((evidence_role)::text = ANY ((ARRAY['FULL_FRAME'::character varying, 'PLATE_CROP'::character varying, 'CLIP'::character varying])::text[]))),
+    CONSTRAINT evidence_file_size_limit_check CHECK (((((media_type)::text = 'IMAGE'::text) AND (file_size_byte <= 5242880)) OR (((media_type)::text = 'VIDEO'::text) AND (file_size_byte <= 52428800)))),
+    CONSTRAINT evidence_media_type_check CHECK (((media_type)::text = ANY (ARRAY[('IMAGE'::character varying)::text, ('VIDEO'::character varying)::text]))),
+    CONSTRAINT evidence_provider_check CHECK (((storage_provider)::text = ANY (ARRAY[('S3'::character varying)::text, ('MINIO'::character varying)::text, ('GCS'::character varying)::text]))),
+    CONSTRAINT evidence_role_check CHECK (((evidence_role)::text = ANY (ARRAY[('FULL_FRAME'::character varying)::text, ('PLATE_CROP'::character varying)::text, ('CLIP'::character varying)::text]))),
+    CONSTRAINT evidence_role_media_type_check CHECK (((((evidence_role)::text = ANY (ARRAY[('FULL_FRAME'::character varying)::text, ('PLATE_CROP'::character varying)::text])) AND ((media_type)::text = 'IMAGE'::text)) OR (((evidence_role)::text = 'CLIP'::text) AND ((media_type)::text = 'VIDEO'::text)))),
     CONSTRAINT evidence_size_check CHECK ((file_size_byte >= 0))
 );
 
@@ -123,7 +125,7 @@ CREATE TABLE public.officers (
     email character varying(255) NOT NULL,
     password_hash character varying(255) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT officers_role_check CHECK (((role)::text = ANY ((ARRAY['ADMIN'::character varying, 'OFFICER'::character varying])::text[])))
+    CONSTRAINT officers_role_check CHECK (((role)::text = ANY (ARRAY[('ADMIN'::character varying)::text, ('OFFICER'::character varying)::text])))
 );
 
 
@@ -175,7 +177,7 @@ CREATE TABLE public.violation_audit_logs (
     action character varying(30) NOT NULL,
     notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT violation_audit_logs_action_check CHECK (((action)::text = ANY ((ARRAY['CREATED'::character varying, 'CONFIRMED'::character varying, 'REJECTED'::character varying, 'REOPENED'::character varying, 'VEHICLE_LINKED'::character varying, 'NOTE_ADDED'::character varying])::text[])))
+    CONSTRAINT violation_audit_logs_action_check CHECK (((action)::text = ANY (ARRAY[('CREATED'::character varying)::text, ('CONFIRMED'::character varying)::text, ('REJECTED'::character varying)::text, ('REOPENED'::character varying)::text, ('VEHICLE_LINKED'::character varying)::text, ('NOTE_ADDED'::character varying)::text])))
 );
 
 
@@ -256,8 +258,8 @@ CREATE TABLE public.violations (
     CONSTRAINT violations_detection_conf_check CHECK (((detection_confidence >= (0)::numeric) AND (detection_confidence <= (1)::numeric))),
     CONSTRAINT violations_plate_conf_check CHECK (((plate_confidence >= (0)::numeric) AND (plate_confidence <= (1)::numeric))),
     CONSTRAINT violations_review_consistency CHECK (((reviewed_by_id IS NULL) = (reviewed_at IS NULL))),
-    CONSTRAINT violations_signal_state_check CHECK (((signal_state)::text = ANY ((ARRAY['RED'::character varying, 'YELLOW'::character varying, 'GREEN'::character varying])::text[]))),
-    CONSTRAINT violations_status_check CHECK (((status)::text = ANY ((ARRAY['PENDING'::character varying, 'CONFIRMED'::character varying, 'REJECTED'::character varying])::text[])))
+    CONSTRAINT violations_signal_state_check CHECK (((signal_state)::text = ANY (ARRAY[('RED'::character varying)::text, ('YELLOW'::character varying)::text, ('GREEN'::character varying)::text]))),
+    CONSTRAINT violations_status_check CHECK (((status)::text = ANY (ARRAY[('PENDING'::character varying)::text, ('CONFIRMED'::character varying)::text, ('REJECTED'::character varying)::text])))
 );
 
 
@@ -475,6 +477,13 @@ CREATE UNIQUE INDEX uq_evidence_storage ON public.evidence USING btree (storage_
 
 
 --
+-- Name: uq_evidence_violation_role; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_evidence_violation_role ON public.evidence USING btree (violation_id, evidence_role);
+
+
+--
 -- Name: uq_violations_dedup; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -559,6 +568,8 @@ ALTER TABLE ONLY public.vehicles
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261005140000'),
+('20261005134500'),
 ('20260930214250'),
 ('20260930214129'),
 ('20260930213801'),
