@@ -26,6 +26,7 @@ module Api
           violation.save!
           ViolationAuditLog.record!(violation: violation, action: "CREATED")
         end
+        RealtimeBroadcaster.violation_created(violation)
 
         render json: violation_json(violation), status: :created
       rescue ActiveRecord::RecordInvalid => error

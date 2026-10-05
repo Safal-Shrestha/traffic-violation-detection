@@ -16,11 +16,11 @@ module Api
         scope = ViolationAuditLog.includes(:officer).order(created_at: :desc, id: :desc)
         scope = scope.where(officer_id: params[:officer_id]) if params[:officer_id].present?
         scope = scope.where(violation_id: params[:violation_id]) if params[:violation_id].present?
-        
+
         # `action` is a reserved routing param, so the filter is read from the query string.
         action = request.query_parameters["action"]
         scope = scope.where(action: action) if action.present?
-        
+
         from = time_param(:from)
         to = time_param(:to)
         scope = scope.where("violation_audit_logs.created_at >= ?", from) if from
@@ -31,7 +31,7 @@ module Api
       rescue ActiveRecord::StatementInvalid => e
         raise unless e.cause.is_a?(PG::InvalidTextRepresentation)
 
-        raise ApiErrors::ValidationFailed.new([{ field: "filter", message: "contains an invalid id" }])
+        raise ApiErrors::ValidationFailed.new([ { field: "filter", message: "contains an invalid id" } ])
       end
     end
   end

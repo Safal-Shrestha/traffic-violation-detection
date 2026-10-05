@@ -55,7 +55,7 @@ module Api
         Camera.transaction { camera.save! }
         render json: CameraSerializer.call(camera), status: :created
       rescue ActiveRecord::RecordNotUnique
-        raise ApiErrors::ValidationFailed.new([{ field: "raw_stream_key", message: "has already been taken" }])
+        raise ApiErrors::ValidationFailed.new([ { field: "raw_stream_key", message: "has already been taken" } ])
       end
 
       # Changing status or raw_stream_key increments config_version so the worker notices.
@@ -74,7 +74,7 @@ module Api
         @camera.save!
         render json: CameraSerializer.call(@camera)
       rescue ActiveRecord::RecordNotUnique
-        raise ApiErrors::ValidationFailed.new([{ field: "raw_stream_key", message: "has already been taken" }])
+        raise ApiErrors::ValidationFailed.new([ { field: "raw_stream_key", message: "has already been taken" } ])
       end
 
       private
@@ -113,10 +113,10 @@ module Api
         return [] unless camera ? attrs.key?(:raw_stream_key) : attrs[:raw_stream_key].present?
 
         key = attrs[:raw_stream_key].to_s.strip
-        return [{ field: "raw_stream_key", message: "can't be blank" }] if key.empty?
+        return [ { field: "raw_stream_key", message: "can't be blank" } ] if key.empty?
 
         taken = Camera.where(raw_stream_key: key).where.not(id: camera&.id).exists?
-        taken ? [{ field: "raw_stream_key", message: "has already been taken" }] : []
+        taken ? [ { field: "raw_stream_key", message: "has already been taken" } ] : []
       end
 
       def parsed_date(value)
@@ -131,7 +131,7 @@ module Api
         value = params[name].to_s.upcase
         return value if allowed.include?(value)
 
-        raise ApiErrors::ValidationFailed.new([{ field: name.to_s, message: "must be one of #{allowed.join(', ')}" }])
+        raise ApiErrors::ValidationFailed.new([ { field: name.to_s, message: "must be one of #{allowed.join(', ')}" } ])
       end
 
       # calibration.status is derived (contract 4.3.1), so uncalibrated cameras are

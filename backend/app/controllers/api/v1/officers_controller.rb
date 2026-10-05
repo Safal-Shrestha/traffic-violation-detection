@@ -25,7 +25,7 @@ module Api
       def update
         attrs = officer_params
         if attrs.key?(:password) && attrs[:password].blank?
-          raise ApiErrors::ValidationFailed.new([{ field: "password", message: "can't be blank" }])
+          raise ApiErrors::ValidationFailed.new([ { field: "password", message: "can't be blank" } ])
         end
 
         Officer.transaction do

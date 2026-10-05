@@ -105,14 +105,14 @@ class Api::V1::CamerasControllerTest < ActionDispatch::IntegrationTest
     calibrated.update_columns(stop_line: { p1: { x: 1, y: 2 }, p2: { x: 3, y: 4 }, approach_side: "below" })
 
     get "/api/v1/cameras", params: { calibration_status: "CALIBRATED" }, headers: auth_headers(@admin)
-    assert_equal [calibrated.id], response.parsed_body["data"].map { |c| c["id"] }
+    assert_equal [ calibrated.id ], response.parsed_body["data"].map { |c| c["id"] }
 
     get "/api/v1/cameras", params: { calibration_status: "AWAITING_WORKER" }, headers: auth_headers(@admin)
-    assert_equal [waiting.id], response.parsed_body["data"].map { |c| c["id"] }
+    assert_equal [ waiting.id ], response.parsed_body["data"].map { |c| c["id"] }
 
     stub_reference_frame(true)
     get "/api/v1/cameras", params: { calibration_status: "AWAITING_CALIBRATION" }, headers: auth_headers(@admin)
-    assert_equal [waiting.id], response.parsed_body["data"].map { |c| c["id"] }
+    assert_equal [ waiting.id ], response.parsed_body["data"].map { |c| c["id"] }
     assert_equal true, response.parsed_body.dig("data", 0, "calibration", "reference_frame_ready")
 
     get "/api/v1/cameras", params: { calibration_status: "NOPE" }, headers: auth_headers(@admin)

@@ -16,7 +16,7 @@ class Api::V1::ViolationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     entries = ViolationAuditLog.where(violation_id: id)
-    assert_equal ["CREATED"], entries.pluck(:action)
+    assert_equal [ "CREATED" ], entries.pluck(:action)
     assert_nil entries.first.officer_id
   end
 
@@ -39,7 +39,7 @@ class Api::V1::ViolationsControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  def post_violation(id, evidence: [evidence_attributes(@camera)])
+  def post_violation(id, evidence: [ evidence_attributes(@camera) ])
     with_fake_storage do
       post "/api/v1/violations", params: {
         violation: { id: id, camera_id: @camera.id, violation_type_code: @violation_type.code,

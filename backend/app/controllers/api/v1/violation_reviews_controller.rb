@@ -26,7 +26,7 @@ module Api
       def apply(audit_action:, from:, to:, notes_required:)
         notes = params[:notes].to_s.strip.presence
         if notes_required && notes.nil?
-          raise ApiErrors::ValidationFailed.new([{ field: "notes", message: "can't be blank" }])
+          raise ApiErrors::ValidationFailed.new([ { field: "notes", message: "can't be blank" } ])
         end
 
         violation = entry = nil

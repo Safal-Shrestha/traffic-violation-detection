@@ -11,7 +11,7 @@ Rails.application.routes.draw do
 
       resources :cameras, only: %i[index show create update]
       resources :officers, only: %i[index show create update destroy]
-      
+
       resources :violations, only: %i[index show create] do
         member do
           get :evidence
@@ -28,7 +28,7 @@ Rails.application.routes.draw do
       match "evidence", to: "evidence#get_not_allowed", via: %i[get]
       match "evidence", to: "evidence#read_only", via: %i[post put patch delete]
       match "evidence/:id", to: "evidence#read_only", via: %i[post put patch delete]
-      
+
       get "violations/:id/audit-log", to: "violation_audit_logs#for_violation"
       get "audit-log", to: "violation_audit_logs#index", as: :audit_log
     end

@@ -21,7 +21,7 @@ module Api
 
       def change_password
         unless current_officer.valid_password?(params[:current_password].to_s)
-          raise ApiErrors::ValidationFailed.new([{ field: "current_password", message: "is incorrect" }])
+          raise ApiErrors::ValidationFailed.new([ { field: "current_password", message: "is incorrect" } ])
         end
 
         current_officer.update!(password: params[:new_password].to_s)
