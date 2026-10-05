@@ -224,7 +224,6 @@ Registering a camera has these side effects, all inside one transaction:
     "webrtc_url": "http://192.168.1.100:8889/live/6f0e8c1a_out",
     "hls_url": null
   },
-  "signal": { "state": "RED", "updated_at": "2026-10-04T08:00:00.000Z" },
   "calibration": {
     "status": "AWAITING_WORKER",
     "calibrated": false,
@@ -269,7 +268,7 @@ Geometry and grace period change only through `PUT /cameras/{id}/config`.
 
 ---
 
-### 4.3 Camera configuration, calibration, signal, heartbeat
+### 4.3 Camera configuration, calibration, heartbeat
 
 #### `GET /cameras/{id}/config` (Worker, User)
 
@@ -290,8 +289,7 @@ Supports `If-None-Match: "<config_version>"` and returns `304` when unchanged.
     "p2": { "x": 1040, "y": 655 },
     "approach_side": "below"
   },
-  "red_grace_seconds": 0.5,
-  "signal": { "state": "RED", "updated_at": "2026-10-04T08:00:00.000Z" }
+  "red_grace_seconds": 0.5
 }
 ```
 

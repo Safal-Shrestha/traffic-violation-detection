@@ -30,7 +30,6 @@ class CameraSerializer
         webrtc_url: camera.output_stream_key.present? ? "#{playback_base}/#{camera.output_stream_key}" : nil,
         hls_url: nil
       },
-      signal: { state: camera.signal_state, updated_at: ApiTime.iso(camera.signal_updated_at) },
       calibration: {
         status: calibration_status(camera, frame_ready),
         calibrated: camera.stop_line.present?,

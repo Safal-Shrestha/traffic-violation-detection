@@ -70,12 +70,10 @@ CREATE TABLE public.cameras (
     signal_state_key character varying(255),
     worker_status character varying(20) DEFAULT 'STOPPED'::character varying NOT NULL,
     last_heartbeat timestamp with time zone,
-    signal_updated_at timestamp with time zone,
     red_grace_seconds numeric(3,1) DEFAULT 0.0 NOT NULL,
     status character varying(20) DEFAULT 'ACTIVE'::character varying NOT NULL,
     installed_at date,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    signal_state character varying(10) DEFAULT 'RED'::character varying,
     config_version integer DEFAULT 1 NOT NULL,
     CONSTRAINT cameras_frame_height_check CHECK ((frame_height > 0)),
     CONSTRAINT cameras_frame_width_check CHECK ((frame_width > 0)),
@@ -570,6 +568,7 @@ ALTER TABLE ONLY public.vehicles
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261005140000'),
 ('20261005134500'),
 ('20260930214250'),
 ('20260930214129'),

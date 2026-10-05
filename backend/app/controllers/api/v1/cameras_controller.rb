@@ -48,9 +48,7 @@ module Api
           signal_state_key: "camera_signal_#{id}",
           worker_status: "STOPPED",
           config_version: 1,
-          red_grace_seconds: 0,
-          signal_state: "RED",
-          signal_updated_at: Time.current
+          red_grace_seconds: 0
         )
         Camera.transaction { camera.save! }
         render json: CameraSerializer.call(camera), status: :created

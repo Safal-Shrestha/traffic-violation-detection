@@ -1,18 +1,15 @@
 # One CCTV feed and its detection worker. Holds per-camera configuration:
-# stop line, red-light grace period, simulated signal state, worker health.
+# stop line, red-light grace period, signal lookup key, worker health.
 class Camera < ApplicationRecord
   HEARTBEAT_TIMEOUT = 30.seconds
   APPROACH_SIDES    = %w[above below].freeze
   STATUSES           = %w[ACTIVE INACTIVE MAINTENANCE].freeze
   WORKER_STATUSES    = %w[STOPPED STARTING RUNNING ERROR].freeze
-  SIGNAL_STATES      = %w[RED YELLOW GREEN].freeze
   STOP_LINE_POINTS   = %w[p1 p2].freeze
 
   enum :status,        STATUSES.to_h { |value| [ value.downcase.to_sym, value ] }, validate: true
   enum :worker_status, WORKER_STATUSES.to_h { |value| [ value.downcase.to_sym, value ] },
        prefix: :worker, validate: true
-  enum :signal_state, SIGNAL_STATES.to_h { |value| [ value.downcase.to_sym, value ] }, validate: false
-
   has_many :violations, inverse_of: :camera, dependent: :restrict_with_error
 
   before_validation :normalize_blank_keys
@@ -21,21 +18,12 @@ class Camera < ApplicationRecord
   validates :raw_stream_key, presence: true, length: { maximum: 255 }, uniqueness: true
   validates :output_stream_key, length: { maximum: 255 }, uniqueness: true, allow_nil: true
   validates :signal_state_key, length: { maximum: 255 }, uniqueness: true, allow_nil: true
-  validates :signal_state, inclusion: { in: SIGNAL_STATES }, allow_nil: true
   validates :frame_width, :frame_height, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :red_grace_seconds, numericality: { greater_than_or_equal_to: 0 }
   validate  :stop_line_must_be_valid
 
   def calibrated?
     stop_line.present?
-  end
-
-  def signal_state
-    super&.upcase
-  end
-
-  def signal_red?
-    signal_state == "RED"
   end
 
   # Worker is considered online when it reports RUNNING and its heartbeat is fresh.
@@ -47,18 +35,6 @@ class Camera < ApplicationRecord
     attrs = { last_heartbeat: Time.current }
     attrs[:worker_status] = status if status
     update!(attrs)
-  end
-
-  def red_elapsed_seconds
-    return unless signal_red? && signal_updated_at
-
-    Time.current - signal_updated_at
-  end
-
-  # True once the light has been red longer than the configured grace period.
-  def red_grace_elapsed?
-    elapsed = red_elapsed_seconds
-    !elapsed.nil? && elapsed >= red_grace_seconds
   end
 
   private
