@@ -38,7 +38,7 @@ module ApiErrors
 
     rescue_from ActionController::ParameterMissing do |error|
       render_error("VALIDATION_FAILED", "Request body failed validation.",
-                   :unprocessable_entity, [{ field: error.param.to_s, message: "is required" }])
+                   :unprocessable_entity, [ { field: error.param.to_s, message: "is required" } ])
     end
   end
 

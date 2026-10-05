@@ -26,7 +26,7 @@ module Paginatable
     rows = scope.limit(limit + 1).to_a
     has_more = rows.size > limit
     rows = rows.first(limit)
-    [rows, { next_cursor: has_more ? encode_cursor(rows.last) : nil, has_more: has_more }]
+    [ rows, { next_cursor: has_more ? encode_cursor(rows.last) : nil, has_more: has_more } ]
   end
 
   def page_limit
@@ -37,7 +37,7 @@ module Paginatable
 
     limit
   rescue ArgumentError
-    raise ApiErrors::ValidationFailed.new([{ field: "limit", message: "must be between 1 and #{MAX_LIMIT}" }])
+    raise ApiErrors::ValidationFailed.new([ { field: "limit", message: "must be between 1 and #{MAX_LIMIT}" } ])
   end
 
   def encode_cursor(row)
@@ -49,8 +49,8 @@ module Paginatable
     Time.iso8601(timestamp.to_s)
     raise ArgumentError unless id.to_s.match?(CURSOR_ID)
 
-    [timestamp, id]
+    [ timestamp, id ]
   rescue ArgumentError
-    raise ApiErrors::ValidationFailed.new([{ field: "cursor", message: "is invalid" }])
+    raise ApiErrors::ValidationFailed.new([ { field: "cursor", message: "is invalid" } ])
   end
 end

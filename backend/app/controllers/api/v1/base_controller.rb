@@ -18,7 +18,7 @@ module Api
 
         Time.iso8601(value.to_s)
       rescue ArgumentError
-        raise ApiErrors::ValidationFailed.new([{ field: name.to_s, message: "must be an ISO 8601 timestamp" }])
+        raise ApiErrors::ValidationFailed.new([ { field: name.to_s, message: "must be an ISO 8601 timestamp" } ])
       end
     end
   end
