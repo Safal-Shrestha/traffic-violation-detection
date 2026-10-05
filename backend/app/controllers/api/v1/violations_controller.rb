@@ -24,6 +24,7 @@ module Api
         Violation.transaction do
           verify_evidence_objects!(violation.evidence_items)
           violation.save!
+          ViolationAuditLog.record!(violation: violation, action: "CREATED")
         end
 
         render json: violation_json(violation), status: :created
