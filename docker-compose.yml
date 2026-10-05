@@ -1,0 +1,4 @@
+# compose files for the project
+include:
+  - infrastructure/media/docker-compose.yml
+  - infrastructure/minio/docker-compose.yml
