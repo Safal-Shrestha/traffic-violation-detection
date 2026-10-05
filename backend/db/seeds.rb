@@ -7,3 +7,24 @@ ActiveRecord::Base.connection.execute(<<~SQL)
     ('NO_HELMET', 'Helmet Violation',    'Two-wheeler rider detected without a helmet.', 5000)
   ON CONFLICT (code) DO NOTHING;
 SQL
+
+# Bootstrap the first administrator when credentials are explicitly supplied.
+# Subsequent admins must be created through the authenticated admin API.
+admin_attributes = {
+  name: ENV["ADMIN_NAME"],
+  badge_number: ENV["ADMIN_BADGE_NUMBER"],
+  email: ENV["ADMIN_EMAIL"],
+  password: ENV["ADMIN_PASSWORD"],
+  role: "ADMIN"
+}
+
+if admin_attributes.values_at(:name, :badge_number, :email, :password).all?(&:present?)
+  email = admin_attributes[:email].strip.downcase
+  existing_admin = Officer.find_by(email: email)
+
+  if existing_admin
+    raise "ADMIN_EMAIL belongs to a non-admin officer" unless existing_admin.admin?
+  else
+    Officer.create!(admin_attributes.merge(email: email))
+  end
+end
