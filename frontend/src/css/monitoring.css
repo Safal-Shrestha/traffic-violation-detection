@@ -1,0 +1,547 @@
+.monitoring-page {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.monitoring-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.monitoring-heading h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  color: var(--text-primary);
+}
+
+.monitoring-heading p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.monitoring-system-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.monitoring-system-status span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16a34a;
+}
+
+/* Main layout */
+
+.monitoring-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.monitoring-sidebar,
+.monitoring-panel,
+.monitoring-feed-panel {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+}
+
+/* Camera sidebar */
+
+.monitoring-sidebar {
+  align-self: start;
+  overflow: hidden;
+}
+
+.monitoring-sidebar-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.monitoring-sidebar-title h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.monitoring-sidebar-title span,
+.monitoring-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 25px;
+  height: 25px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* Camera selector */
+
+.monitoring-camera-selector {
+  padding: 8px;
+}
+
+.monitoring-camera-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  padding: 12px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.monitoring-camera-option:hover {
+  background: var(--sidebar-hover);
+}
+
+.monitoring-camera-option.active {
+  background: var(--sidebar-active);
+  color: var(--text-primary);
+}
+
+.monitoring-camera-option > span:not(
+    .monitoring-camera-status
+  ) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+}
+
+.monitoring-camera-option strong {
+  font-size: 12px;
+}
+
+.monitoring-camera-option small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitoring-camera-status {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.monitoring-camera-status.online {
+  background: #16a34a;
+}
+
+.monitoring-camera-status.offline {
+  background: #dc2626;
+}
+
+/* Main */
+
+.monitoring-main {
+  min-width: 0;
+}
+
+.monitoring-feed-panel {
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.monitoring-feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.monitoring-feed-header h3 {
+  margin: 0 0 3px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.monitoring-feed-header span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.monitoring-feed-meta {
+  display: flex;
+  gap: 14px;
+}
+
+/* Camera feed */
+
+.monitoring-feed {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 410px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.monitoring-feed.offline {
+  min-height: 410px;
+}
+
+.monitoring-feed-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-muted);
+}
+
+.monitoring-feed-placeholder span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.monitoring-feed-placeholder small {
+  font-size: 11px;
+}
+
+.monitoring-live-indicator {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: var(--bg-primary);
+  color: #dc2626;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.monitoring-fullscreen-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.monitoring-feed-overlay {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+/* Panels */
+
+.monitoring-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.monitoring-panel {
+  overflow: hidden;
+}
+
+.monitoring-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.monitoring-panel-title h3 {
+  margin: 0 0 3px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.monitoring-panel-title p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.monitoring-detection-badge {
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+/* Selected vehicle */
+
+.monitoring-vehicle-plate {
+  margin: 18px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  text-align: center;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.monitoring-vehicle-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin: 0 18px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--border-color);
+}
+
+.monitoring-vehicle-details > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+}
+
+.monitoring-vehicle-details span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.monitoring-vehicle-details small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.monitoring-vehicle-details strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.monitoring-vehicle-time {
+  padding: 13px 18px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+/* Detected vehicles */
+
+.monitoring-vehicle-list {
+  padding: 8px;
+}
+
+.monitoring-vehicle-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  padding: 11px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.monitoring-vehicle-item:hover,
+.monitoring-vehicle-item.active {
+  background: var(--bg-tertiary);
+}
+
+.monitoring-vehicle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--icon-background);
+}
+
+.monitoring-vehicle-item > div:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 3px;
+}
+
+.monitoring-vehicle-item strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.monitoring-vehicle-item span {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+/* AI detections */
+
+.monitoring-detection-list {
+  padding: 8px;
+}
+
+.monitoring-detection-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 10px;
+}
+
+.monitoring-detection-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.monitoring-detection-item > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.monitoring-detection-item strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.monitoring-detection-item span {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.monitoring-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.monitoring-loading {
+  padding: 40px 0;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 1000px) {
+  .monitoring-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .monitoring-camera-selector {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+  }
+
+  .monitoring-sidebar-title {
+    padding-bottom: 10px;
+  }
+}
+
+@media (max-width: 750px) {
+  .monitoring-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .monitoring-feed {
+    min-height: 330px;
+  }
+
+  .monitoring-feed.offline {
+    min-height: 330px;
+  }
+
+  .monitoring-camera-selector {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .monitoring-heading {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .monitoring-heading h1 {
+    font-size: 22px;
+  }
+
+  .monitoring-system-status {
+    display: none;
+  }
+
+  .monitoring-feed-header {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .monitoring-feed-meta {
+    display: none;
+  }
+
+  .monitoring-feed {
+    min-height: 270px;
+  }
+
+  .monitoring-feed.offline {
+    min-height: 270px;
+  }
+
+  .monitoring-vehicle-details {
+    grid-template-columns: 1fr;
+  }
+}
