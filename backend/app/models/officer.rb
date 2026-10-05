@@ -4,6 +4,11 @@
 class Officer < ApplicationRecord
   enum :role, { admin: "ADMIN", officer: "OFFICER" }, validate: true
 
+  devise :database_authenticatable, :jwt_authenticatable,
+         jwt_revocation_strategy: Devise::JWT::RevocationStrategies::Null
+
+  alias_attribute :encrypted_password, :password_hash
+
   has_many :reviewed_violations, class_name: "Violation", foreign_key: :reviewed_by_id,
                                  inverse_of: :reviewed_by, dependent: :restrict_with_error
   has_many :audit_logs, class_name: "ViolationAuditLog",
@@ -11,12 +16,16 @@ class Officer < ApplicationRecord
 
   before_validation :normalize_email
 
-  validates :name,          presence: true, length: { maximum: 150 }
+  validates :name, presence: true, length: { maximum: 150 }
   validates :badge_number,  presence: true, length: { maximum: 30 }, uniqueness: true
-  validates :email,         presence: true, length: { maximum: 255 },
-                            format: { with: URI::MailTo::EMAIL_REGEXP },
-                            uniqueness: { case_sensitive: false }
-  validates :password_hash, presence: true
+  validates :email, presence: true, length: { maximum: 255 },
+                    format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true },
+                    uniqueness: { case_sensitive: false }
+  validates :password_hash, presence: true, on: :create
+
+  def admin?
+    role == "ADMIN"
+  end
 
   private
 
