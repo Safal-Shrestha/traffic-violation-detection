@@ -7,7 +7,8 @@ class Api::V1::ViolationsControllerTest < ActionDispatch::IntegrationTest
     camera_id = SecureRandom.uuid
     Camera.insert_all!([ { id: camera_id, name: "Test camera", raw_stream_key: "test-camera-#{camera_id}" } ])
     @camera = Camera.find(camera_id)
-    @violation_type = ViolationType.create!(code: "RED_LIGHT", name: "Red light", fine_amount_npr: 500)
+    @violation_type_code = "RED_LIGHT_#{SecureRandom.hex(4).upcase}"
+    @violation_type = ViolationType.create!(code: @violation_type_code, name: "Red light", fine_amount_npr: 500)
   end
 
   test "worker creates a violation with registered evidence" do
@@ -16,7 +17,7 @@ class Api::V1::ViolationsControllerTest < ActionDispatch::IntegrationTest
         post api_v1_violations_path, params: {
           violation: valid_violation_attributes.merge(
             id: SecureRandom.uuid,
-            violation_type_code: "RED_LIGHT",
+            violation_type_code: @violation_type_code,
             evidence: [ valid_evidence_attributes ]
           )
         }
@@ -24,7 +25,7 @@ class Api::V1::ViolationsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :created
-    assert_equal "RED_LIGHT", response.parsed_body.dig("violation_type", "code")
+    assert_equal @violation_type_code, response.parsed_body.dig("violation_type", "code")
     assert_equal 1, response.parsed_body.fetch("evidence").size
   end
 
@@ -32,14 +33,14 @@ class Api::V1::ViolationsControllerTest < ActionDispatch::IntegrationTest
     id = SecureRandom.uuid
     with_fake_storage do
       post api_v1_violations_path, params: {
-        violation: valid_violation_attributes.merge(id: id, violation_type_code: "RED_LIGHT",
+        violation: valid_violation_attributes.merge(id: id, violation_type_code: @violation_type_code,
                                                      evidence: [ valid_evidence_attributes ])
       }
       assert_response :created
 
       assert_no_difference([ "Violation.count", "Evidence.count" ]) do
         post api_v1_violations_path, params: {
-          violation: valid_violation_attributes.merge(id: id, violation_type_code: "RED_LIGHT",
+          violation: valid_violation_attributes.merge(id: id, violation_type_code: @violation_type_code,
                                                        evidence: [ valid_evidence_attributes ])
         }
       end
