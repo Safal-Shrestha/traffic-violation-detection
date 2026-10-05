@@ -1,7 +1,7 @@
 class AuditEntrySerializer
   def self.call(entry)
     {
-      action: entry.class.actions.fetch(entry.action),
+      action: entry.action.to_s.upcase,
       created_at: entry.created_at,
       id: entry.id,
       notes: entry.notes,

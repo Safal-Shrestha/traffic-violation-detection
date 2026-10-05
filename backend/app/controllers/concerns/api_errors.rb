@@ -14,7 +14,7 @@ module ApiErrors
 
   class ValidationFailed < ApiError
     def initialize(details, message = "Request body failed validation.")
-      super("VALIDATION_FAILED", message, :unprocessable_entity, details)
+      super("VALIDATION_FAILED", message, :unprocessable_content, details)
     end
   end
 
@@ -33,12 +33,12 @@ module ApiErrors
 
     rescue_from ActiveRecord::RecordInvalid do |error|
       render_error("VALIDATION_FAILED", "Request body failed validation.",
-                   :unprocessable_entity, ApiErrors.details_for(error.record))
+                   :unprocessable_content, ApiErrors.details_for(error.record))
     end
 
     rescue_from ActionController::ParameterMissing do |error|
       render_error("VALIDATION_FAILED", "Request body failed validation.",
-                   :unprocessable_entity, [ { field: error.param.to_s, message: "is required" } ])
+                   :unprocessable_content, [ { field: error.param.to_s, message: "is required" } ])
     end
   end
 

@@ -6,10 +6,7 @@ class Officer < ApplicationRecord
 
   ROLES = %w[ADMIN OFFICER].freeze
 
-  enum :role, {
-    admin: "ADMIN",
-    officer: "OFFICER"
-  }, validates: true
+  enum :role, ROLES.to_h { |value| [ value.downcase.to_sym, value ] }, validates: true
 
   devise :database_authenticatable, :jwt_authenticatable,
          jwt_revocation_strategy: Devise::JWT::RevocationStrategies::Null
@@ -26,6 +23,18 @@ class Officer < ApplicationRecord
   validates :email, presence: true, length: { maximum: 255 }, format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true }, uniqueness: { case_sensitive: false }
   validates :role, presence: true
   validates :password_hash, presence: true, on: :create
+
+  def role
+    super&.upcase
+  end
+
+  def admin?
+    role == "ADMIN"
+  end
+
+  def officer?
+    role == "OFFICER"
+  end
 
   private
 

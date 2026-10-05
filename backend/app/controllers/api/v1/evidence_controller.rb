@@ -1,6 +1,6 @@
 module Api
   module V1
-    class EvidenceController < ApplicationController
+    class EvidenceController < BaseController
       def presign
         request_data = presign_params
         camera = Camera.find(request_data[:camera_id])

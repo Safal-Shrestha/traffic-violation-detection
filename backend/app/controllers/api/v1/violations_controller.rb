@@ -1,6 +1,6 @@
 module Api
   module V1
-    class ViolationsController < ApplicationController
+    class ViolationsController < BaseController
       def index
         violations = filtered_violations
         render json: {
@@ -24,7 +24,6 @@ module Api
         Violation.transaction do
           verify_evidence_objects!(violation.evidence_items)
           violation.save!
-          ViolationAuditLog.record!(violation: violation, action: "CREATED")
         end
         RealtimeBroadcaster.violation_created(violation)
 

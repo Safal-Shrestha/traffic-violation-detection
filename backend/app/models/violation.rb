@@ -13,9 +13,13 @@ class Violation < ApplicationRecord
   has_many :audit_logs,     class_name: "ViolationAuditLog", inverse_of: :violation, dependent: :restrict_with_error
   accepts_nested_attributes_for :evidence_items
 
-  enum :status, { pending: "PENDING", confirmed: "CONFIRMED", rejected: "REJECTED" }, validate: true
+  STATUSES      = %w[PENDING CONFIRMED REJECTED].freeze
+  SIGNAL_STATES = %w[RED YELLOW GREEN].freeze
+
+  enum :status, STATUSES.to_h { |value| [ value.downcase.to_sym, value ] }, validate: true
   # Signal state at the moment of the event; NULL for signal-independent violation types.
-  enum :signal_state, { red: "RED", yellow: "YELLOW", green: "GREEN" }, prefix: :signal, validate: { allow_nil: true }
+  enum :signal_state, SIGNAL_STATES.to_h { |value| [ value.downcase.to_sym, value ] },
+       prefix: :signal, validate: { allow_nil: true }
 
   validates :occurred_at, presence: true
   validates :detection_confidence, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }

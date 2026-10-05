@@ -18,7 +18,11 @@ module Api
       end
 
       def create
-        officer = Officer.create!(officer_params)
+        attrs = officer_params
+        role = attrs[:role].to_s.upcase
+        attrs[:role] = nil if attrs.key?(:role) && !Officer::ROLES.include?(role)
+        attrs[:role] = role if Officer::ROLES.include?(role)
+        officer = Officer.create!(attrs)
         render json: OfficerSerializer.call(officer), status: :created
       end
 
@@ -27,11 +31,17 @@ module Api
         if attrs.key?(:password) && attrs[:password].blank?
           raise ApiErrors::ValidationFailed.new([ { field: "password", message: "can't be blank" } ])
         end
+        if attrs.key?(:role)
+          role = attrs[:role].to_s.upcase
+          raise ApiErrors::ValidationFailed.new([ { field: "role", message: "is not included in the list" } ]) unless Officer::ROLES.include?(role)
+
+          attrs[:role] = role
+        end
 
         Officer.transaction do
           @officer.assign_attributes(attrs)
           @officer.validate!
-          ensure_another_admin! if @officer.role_was == "ADMIN" && @officer.role != "ADMIN"
+          ensure_another_admin! if @officer.role_was.to_s.upcase == "ADMIN" && @officer.role.to_s.upcase != "ADMIN"
           @officer.save!
         end
         render json: OfficerSerializer.call(@officer)

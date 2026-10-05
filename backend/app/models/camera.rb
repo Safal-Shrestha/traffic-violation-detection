@@ -3,10 +3,15 @@
 class Camera < ApplicationRecord
   HEARTBEAT_TIMEOUT = 30.seconds
   APPROACH_SIDES    = %w[above below].freeze
+  STATUSES           = %w[ACTIVE INACTIVE MAINTENANCE].freeze
+  WORKER_STATUSES    = %w[STOPPED STARTING RUNNING ERROR].freeze
+  SIGNAL_STATES      = %w[RED YELLOW GREEN].freeze
+  STOP_LINE_POINTS   = %w[p1 p2].freeze
 
-  enum :status,        { active: "ACTIVE", inactive: "INACTIVE", maintenance: "MAINTENANCE" }, validate: true
-  enum :worker_status, { stopped: "STOPPED", starting: "STARTING", running: "RUNNING", error: "ERROR" },
+  enum :status,        STATUSES.to_h { |value| [ value.downcase.to_sym, value ] }, validate: true
+  enum :worker_status, WORKER_STATUSES.to_h { |value| [ value.downcase.to_sym, value ] },
        prefix: :worker, validate: true
+  enum :signal_state, SIGNAL_STATES.to_h { |value| [ value.downcase.to_sym, value ] }, validate: false
 
   has_many :violations, inverse_of: :camera, dependent: :restrict_with_error
 
@@ -16,12 +21,21 @@ class Camera < ApplicationRecord
   validates :raw_stream_key, presence: true, length: { maximum: 255 }, uniqueness: true
   validates :output_stream_key, length: { maximum: 255 }, uniqueness: true, allow_nil: true
   validates :signal_state_key, length: { maximum: 255 }, uniqueness: true, allow_nil: true
+  validates :signal_state, inclusion: { in: SIGNAL_STATES }, allow_nil: true
   validates :frame_width, :frame_height, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :red_grace_seconds, numericality: { greater_than_or_equal_to: 0 }
   validate  :stop_line_must_be_valid
 
   def calibrated?
     stop_line.present?
+  end
+
+  def signal_state
+    super&.upcase
+  end
+
+  def signal_red?
+    signal_state == "RED"
   end
 
   # Worker is considered online when it reports RUNNING and its heartbeat is fresh.
@@ -52,10 +66,6 @@ class Camera < ApplicationRecord
   # Unique indexes treat '' as a value, so blank keys are stored as NULL.
   def normalize_blank_keys
     self.output_stream_key = output_stream_key.to_s.strip.presence
-  end
-
-  # Unique indexes treat '' as a value, so blank keys are stored as NULL.
-  def normalize_blank_keys
     self.signal_state_key = signal_state_key.to_s.strip.presence
   end
 
@@ -66,7 +76,7 @@ class Camera < ApplicationRecord
     return errors.add(:stop_line, "must be an object") unless stop_line.is_a?(Hash)
     return errors.add(:stop_line, "requires frame_width and frame_height") if frame_width.nil? || frame_height.nil?
 
-    %w[p1 p2].each do |key|
+    STOP_LINE_POINTS.each do |key|
       point = stop_line[key]
       x, y  = point.is_a?(Hash) ? [ point["x"], point["y"] ] : [ nil, nil ]
       inside = x.is_a?(Numeric) && y.is_a?(Numeric) && x.between?(0, frame_width) && y.between?(0, frame_height)

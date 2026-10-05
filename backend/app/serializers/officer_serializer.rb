@@ -4,7 +4,7 @@ class OfficerSerializer
       id: officer.id,
       name: officer.name,
       badge_number: officer.badge_number,
-      role: officer.role,
+      role: officer.role.to_s.upcase,
       email: officer.email
     }
   end

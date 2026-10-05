@@ -5,9 +5,13 @@ class Evidence < ApplicationRecord
 
   belongs_to :violation, inverse_of: :evidence_items
 
-  enum :media_type,       { image: "IMAGE", video: "VIDEO" }, validate: true
-  enum :evidence_role,    { full_frame: "FULL_FRAME", plate_crop: "PLATE_CROP", clip: "CLIP" }, validate: true
-  enum :storage_provider, { s3: "S3", minio: "MINIO", gcs: "GCS" }, validate: true
+  MEDIA_TYPES       = %w[IMAGE VIDEO].freeze
+  EVIDENCE_ROLES    = %w[FULL_FRAME PLATE_CROP CLIP].freeze
+  STORAGE_PROVIDERS = %w[S3 MINIO GCS].freeze
+
+  enum :media_type,       MEDIA_TYPES.to_h { |value| [ value.downcase.to_sym, value ] }, validate: true
+  enum :evidence_role,    EVIDENCE_ROLES.to_h { |value| [ value.downcase.to_sym, value ] }, validate: true
+  enum :storage_provider, STORAGE_PROVIDERS.to_h { |value| [ value.downcase.to_sym, value ] }, validate: true
 
   IMAGE_MAX_BYTES = 5.megabytes
   VIDEO_MAX_BYTES = 50.megabytes
