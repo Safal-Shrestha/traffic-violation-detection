@@ -42,6 +42,10 @@ module Api
         render_error("READ_ONLY_RESOURCE", "Evidence cannot be modified or deleted.", :method_not_allowed)
       end
 
+      def get_not_allowed
+        render_error("METHOD_NOT_ALLOWED", "GET method is forbidden for this resource", :method_not_allowed)
+      end
+
       private
 
       def storage

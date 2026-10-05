@@ -7,6 +7,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       post "evidence/presign", to: "evidence#presign"
       resources :evidence, only: :show
+      match "evidence", to:"evidence#get_not_allowed", via: %i[get]
       match "evidence", to: "evidence#read_only", via: %i[post put patch delete]
       match "evidence/:id", to: "evidence#read_only", via: %i[post put patch delete]
       resources :violations, only: %i[index show create] do
