@@ -43,8 +43,8 @@ module Api
           municipality: attrs[:municipality],
           installed_at: parsed_date(attrs[:installed_at]),
           status: attrs[:status].presence || "ACTIVE",
-          raw_stream_key: attrs[:raw_stream_key].to_s.strip.presence || "live/#{id}_in",
-          output_stream_key: "live/#{id}_out",
+          raw_stream_key: "#{id}-raw",
+          output_stream_key: "#{id}-annotated",
           signal_state_key: "camera_signal_#{id}",
           worker_status: "STOPPED",
           config_version: 1,
@@ -52,33 +52,29 @@ module Api
         )
         Camera.transaction { camera.save! }
         render json: CameraSerializer.call(camera), status: :created
-      rescue ActiveRecord::RecordNotUnique
-        raise ApiErrors::ValidationFailed.new([ { field: "raw_stream_key", message: "has already been taken" } ])
       end
 
-      # Changing status or raw_stream_key increments config_version so the worker notices.
+      # Changing status increments config_version so the worker notices.
       def update
         attrs = camera_params
         details = validation_details(attrs, camera: @camera)
         raise ApiErrors::ValidationFailed.new(details) if details.any?
 
-        %i[name district municipality raw_stream_key].each do |field|
+        %i[name district municipality].each do |field|
           @camera[field] = attrs[field].to_s.strip if attrs.key?(field)
         end
         @camera.status = attrs[:status] if attrs[:status].present?
         @camera.installed_at = parsed_date(attrs[:installed_at]) if attrs.key?(:installed_at)
-        @camera.config_version += 1 if @camera.status_changed? || @camera.raw_stream_key_changed?
+        @camera.config_version += 1 if @camera.status_changed?
 
         @camera.save!
         render json: CameraSerializer.call(@camera)
-      rescue ActiveRecord::RecordNotUnique
-        raise ApiErrors::ValidationFailed.new([ { field: "raw_stream_key", message: "has already been taken" } ])
       end
 
       private
 
       def camera_params
-        params.permit(:name, :district, :municipality, :installed_at, :raw_stream_key, :status)
+        params.permit(:name, :district, :municipality, :installed_at, :status)
       end
 
       def load_camera
@@ -104,17 +100,7 @@ module Api
         if attrs[:installed_at].present? && parsed_date(attrs[:installed_at]).nil?
           details << { field: "installed_at", message: "must be a date (YYYY-MM-DD)" }
         end
-        details.concat(raw_stream_key_details(attrs, camera))
-      end
-
-      def raw_stream_key_details(attrs, camera)
-        return [] unless camera ? attrs.key?(:raw_stream_key) : attrs[:raw_stream_key].present?
-
-        key = attrs[:raw_stream_key].to_s.strip
-        return [ { field: "raw_stream_key", message: "can't be blank" } ] if key.empty?
-
-        taken = Camera.where(raw_stream_key: key).where.not(id: camera&.id).exists?
-        taken ? [ { field: "raw_stream_key", message: "has already been taken" } ] : []
+        details
       end
 
       def parsed_date(value)

@@ -16,8 +16,8 @@ module ApiTestHelper
   def create_camera(**attrs)
     id = SecureRandom.uuid
     Camera.insert_all!([ {
-      id: id, name: "Test camera", raw_stream_key: "test-camera-#{id}",
-      output_stream_key: "live/#{id}_out", signal_state_key: "camera_signal_#{id}",
+      id: id, name: "Test camera", raw_stream_key: "#{id}-raw",
+      output_stream_key: "#{id}-annotated", signal_state_key: "camera_signal_#{id}",
       created_at: Time.current
     }.merge(attrs) ])
     Camera.find(id)

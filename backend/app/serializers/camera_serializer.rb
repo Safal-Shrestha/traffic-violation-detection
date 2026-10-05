@@ -28,7 +28,7 @@ class CameraSerializer
       signal_state_key: camera.signal_state_key,
       playback: {
         webrtc_url: camera.output_stream_key.present? ? "#{playback_base}/#{camera.output_stream_key}" : nil,
-        hls_url: nil
+        hls_url: camera.output_stream_key.present? ? "#{hls_base}/#{camera.output_stream_key}/index.m3u8" : nil
       },
       calibration: {
         status: calibration_status(camera, frame_ready),
@@ -53,6 +53,10 @@ class CameraSerializer
   end
 
   def self.playback_base
-    ENV.fetch("MEDIAMTX_PLAYBACK_BASE", "http://192.168.1.100:8889")
+    ENV.fetch("MEDIAMTX_PLAYBACK_BASE", "http://localhost:8889")
+  end
+
+  def self.hls_base
+    ENV.fetch("MEDIAMTX_HLS_BASE", "http://localhost:8888")
   end
 end

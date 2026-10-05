@@ -192,7 +192,10 @@ Devise's default routes are remapped to these paths. The login response uses the
 
 Registering a camera has these side effects, all inside one transaction:
 
-1. The backend generates `output_stream_key` and `signal_state_key`, and a `raw_stream_key` when the request omits one.
+1. The backend generates `output_stream_key` as `<camera-id>-annotated`, `raw_stream_key` as `<camera-id>-raw`, and `signal_state_key`.
+2. If a separate signal-state generator is deployed, its base URL is configured with
+   `SIGNAL_STATE_BASE_URL`; this repository currently stores the signal key but does not
+   implement that generator or a signal-state HTTP endpoint.
 2. The backend registers the camera's worker automatically (`worker_status = STOPPED`). There is no separate worker endpoint.
 3. `config_version` starts at `1` with `stop_line = null`.
 
@@ -203,7 +206,7 @@ Registering a camera has these side effects, all inside one transaction:
   "district": "Kathmandu",
   "municipality": "Kathmandu Metropolitan City",
   "installed_at": "2026-10-04",
-  "raw_stream_key": "live/cam_north_in",   // optional, write-only
+  "raw_stream_key": "ignored-by-backend",   // ignored; backend generates `<camera-id>-raw`
   "status": "ACTIVE"                        // optional, default ACTIVE
 }
 ```
@@ -218,11 +221,11 @@ Registering a camera has these side effects, all inside one transaction:
   "municipality": "Kathmandu Metropolitan City",
   "status": "ACTIVE",
   "installed_at": "2026-10-04",
-  "output_stream_key": "live/6f0e8c1a_out",
+  "output_stream_key": "6f0e8c1a-...-annotated",
   "signal_state_key": "camera_signal_6f0e8c1a-...",
   "playback": {
-    "webrtc_url": "http://192.168.1.100:8889/live/6f0e8c1a_out",
-    "hls_url": null
+    "webrtc_url": "http://192.168.1.100:8889/6f0e8c1a-...-annotated",
+    "hls_url": "http://192.168.1.100:8888/6f0e8c1a-...-annotated/index.m3u8"
   },
   "calibration": {
     "status": "AWAITING_WORKER",
@@ -250,7 +253,7 @@ The response never includes `raw_stream_key`. The frontend does not receive raw 
 
 The operator uses the returned `id` as `CAMERA_ID` when starting the worker container (deployment plan, Section 4).
 
-Errors: `422 VALIDATION_FAILED` (including duplicate `raw_stream_key`).
+Errors: `422 VALIDATION_FAILED` for invalid camera metadata.
 
 #### `GET /cameras` (User)
 
@@ -262,7 +265,7 @@ Returns one camera object.
 
 #### `PATCH /cameras/{id}` (Admin)
 
-Updatable fields: `name`, `district`, `municipality`, `installed_at`, `status`, `raw_stream_key`. Changing `status` or `raw_stream_key` increments `config_version` so the worker notices. `INACTIVE` cameras are not started: the worker idles when its config shows `status != ACTIVE`.
+Updatable fields: `name`, `district`, `municipality`, `installed_at`, and `status`. The stream keys are generated identifiers and are not editable. Changing `status` increments `config_version` so the worker notices. `INACTIVE` cameras are not started: the worker idles when its config shows `status != ACTIVE`.
 
 Geometry and grace period change only through `PUT /cameras/{id}/config`.
 
@@ -279,8 +282,8 @@ Supports `If-None-Match: "<config_version>"` and returns `304` when unchanged.
   "camera_id": "6f0e8c1a-...",
   "config_version": 3,
   "status": "ACTIVE",
-  "raw_stream_key": "live/cam_north_in",
-  "output_stream_key": "live/6f0e8c1a_out",
+  "raw_stream_key": "6f0e8c1a-...-raw",
+  "output_stream_key": "6f0e8c1a-...-annotated",
   "signal_state_key": "camera_signal_6f0e8c1a-...",
   "frame_width": 1280,
   "frame_height": 720,

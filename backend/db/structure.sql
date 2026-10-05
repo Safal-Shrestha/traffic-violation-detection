@@ -568,6 +568,7 @@ ALTER TABLE ONLY public.vehicles
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261005180500'),
 ('20261005140000'),
 ('20261005134500'),
 ('20260930214250'),
