@@ -2,7 +2,14 @@
 # `password_hash` follows the ER diagram. `has_secure_password` expects `password_digest`,
 # so either rename the column or hash passwords yourself (bcrypt/argon2) before assigning.
 class Officer < ApplicationRecord
+  extend Devise::Models
+
   ROLES = %w[ADMIN OFFICER].freeze
+
+  enum :role, {
+    admin: "ADMIN",
+    officer: "OFFICER"
+  }, validates: true
 
   devise :database_authenticatable, :jwt_authenticatable,
          jwt_revocation_strategy: Devise::JWT::RevocationStrategies::Null
@@ -17,12 +24,8 @@ class Officer < ApplicationRecord
   validates :name, presence: true, length: { maximum: 150 }
   validates :badge_number,  presence: true, length: { maximum: 30 }, uniqueness: true
   validates :email, presence: true, length: { maximum: 255 }, format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true }, uniqueness: { case_sensitive: false }
-  validates :role, inclusion: { in: ROLES }
+  validates :role, presence: true
   validates :password_hash, presence: true, on: :create
-
-  def admin?
-    role == "ADMIN"
-  end
 
   private
 

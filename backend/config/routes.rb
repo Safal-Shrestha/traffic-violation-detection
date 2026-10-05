@@ -13,6 +13,8 @@ Rails.application.routes.draw do
       resources :violations, only: %i[index show create] do
         get :evidence, on: :member
       end
+      get "violations/:id/audit-log", to: "violation_audit_logs#for_violation"
+      get "audit-log", to: "violation_audit_logs#index"
     end
   end
 end
