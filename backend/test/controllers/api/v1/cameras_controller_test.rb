@@ -16,12 +16,12 @@ class Api::V1::CamerasControllerTest < ActionDispatch::IntegrationTest
   test "admin registers a camera and the backend generates keys and the worker record" do
     post "/api/v1/cameras", params: {
       name: "Maitighar Junction North", district: "Kathmandu", municipality: "Kathmandu Metropolitan City",
-      installed_at: "2026-10-04", raw_stream_key: "live/cam_north_in"
+      installed_at: "2026-10-04", raw_stream_key: "ignored-input-key"
     }, headers: auth_headers(@admin), as: :json
 
     assert_response :created
     body = response.parsed_body
-    assert_equal "live/#{body['id']}_out", body["output_stream_key"]
+    assert_equal "#{body['id']}-annotated", body["output_stream_key"]
     assert_equal "camera_signal_#{body['id']}", body["signal_state_key"]
     assert_equal "ACTIVE", body["status"]
     assert_equal "2026-10-04", body["installed_at"]
@@ -31,20 +31,20 @@ class Api::V1::CamerasControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, body.dig("calibration", "config_version")
     assert_equal "STOPPED", body.dig("worker", "status")
     assert_equal false, body.dig("worker", "online")
-    assert body.dig("playback", "webrtc_url").end_with?("/live/#{body['id']}_out")
-    assert_nil body.dig("playback", "hls_url")
+    assert body.dig("playback", "webrtc_url").end_with?("/#{body['id']}-annotated")
+    assert body.dig("playback", "hls_url").end_with?("/#{body['id']}-annotated/index.m3u8")
     refute body.key?("raw_stream_key"), "the frontend must never receive the raw stream key"
-    assert_equal "live/cam_north_in", Camera.find(body["id"]).raw_stream_key
+    assert_equal "#{body['id']}-raw", Camera.find(body["id"]).raw_stream_key
   end
 
   test "raw_stream_key is generated when omitted" do
     post "/api/v1/cameras", params: { name: "Cam" }, headers: auth_headers(@admin), as: :json
 
     assert_response :created
-    assert_equal "live/#{response.parsed_body['id']}_in", Camera.find(response.parsed_body["id"]).raw_stream_key
+    assert_equal "#{response.parsed_body['id']}-raw", Camera.find(response.parsed_body["id"]).raw_stream_key
   end
 
-  test "create validates name, status, date and duplicate raw_stream_key" do
+  test "create validates name, status and date" do
     existing = create_camera
     post "/api/v1/cameras", params: { name: " ", status: "BROKEN", installed_at: "04/10/2026",
                                       raw_stream_key: existing.raw_stream_key },
@@ -53,7 +53,7 @@ class Api::V1::CamerasControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
     error = response.parsed_body["error"]
     assert_equal "VALIDATION_FAILED", error["code"]
-    assert_equal %w[installed_at name raw_stream_key status], error["details"].map { |d| d["field"] }.sort
+    assert_equal %w[installed_at name status], error["details"].map { |d| d["field"] }.sort
   end
 
   test "officers can read cameras but not create or update them" do
@@ -141,7 +141,7 @@ class Api::V1::CamerasControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, response.parsed_body.dig("calibration", "config_version")
   end
 
-  test "changing status or raw_stream_key increments config_version" do
+  test "changing status increments config_version" do
     camera = create_camera
 
     patch "/api/v1/cameras/#{camera.id}", params: { status: "INACTIVE" }, headers: auth_headers(@admin), as: :json
@@ -149,11 +149,8 @@ class Api::V1::CamerasControllerTest < ActionDispatch::IntegrationTest
     assert_equal "INACTIVE", response.parsed_body["status"]
     assert_equal 2, response.parsed_body.dig("calibration", "config_version")
 
-    patch "/api/v1/cameras/#{camera.id}", params: { raw_stream_key: "live/new_in" }, headers: auth_headers(@admin), as: :json
-    assert_equal 3, response.parsed_body.dig("calibration", "config_version")
-
     patch "/api/v1/cameras/#{camera.id}", params: { status: "INACTIVE" }, headers: auth_headers(@admin), as: :json
-    assert_equal 3, response.parsed_body.dig("calibration", "config_version"), "unchanged status must not bump the version"
+    assert_equal 2, response.parsed_body.dig("calibration", "config_version"), "unchanged status must not bump the version"
   end
 
   test "patch rejects geometry fields that belong to PUT config" do
@@ -164,15 +161,5 @@ class Api::V1::CamerasControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
     assert_equal %w[red_grace_seconds stop_line], response.parsed_body.dig("error", "details").map { |d| d["field"] }.sort
     assert_nil camera.reload.stop_line
-  end
-
-  test "patch rejects a raw_stream_key used by another camera" do
-    other = create_camera
-    camera = create_camera
-    patch "/api/v1/cameras/#{camera.id}", params: { raw_stream_key: other.raw_stream_key },
-                                          headers: auth_headers(@admin), as: :json
-
-    assert_response :unprocessable_entity
-    assert_equal "raw_stream_key", response.parsed_body.dig("error", "details", 0, "field")
   end
 end

@@ -39,8 +39,8 @@ load_dotenv()
 # ---------------------------------------------------------------- config
 CAMERA_ID = os.getenv("CAMERA_ID", "camera-1")
 MEDIAMTX_URL = os.getenv("MEDIAMTX_URL", "rtsp://localhost:8554")
-INPUT_URL = os.getenv("INPUT_URL", f"{MEDIAMTX_URL}/{CAMERA_ID}-raw")
-OUTPUT_URL = os.getenv("OUTPUT_URL", f"{MEDIAMTX_URL}/{CAMERA_ID}-annotated")
+INPUT_URL = f"{MEDIAMTX_URL}/{CAMERA_ID}-raw"
+OUTPUT_URL = f"{MEDIAMTX_URL}/{CAMERA_ID}-annotated"
 MODEL_PATH = os.getenv("MODEL_PATH", "vehicle_best.pt")
 PLATE_MODEL_PATH = os.getenv("PLATE_MODEL_PATH", "plate_best.pt")
 CONF = float(os.getenv("CONF", "0.4"))
