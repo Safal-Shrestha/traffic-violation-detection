@@ -15,7 +15,7 @@ function CameraTable({
   onDelete,
 }: CameraTableProps) {
   const { user } = useAuth()
-  const isAdministrator = user?.role === 'administrator'
+  const isAdministrator = user?.role === 'ADMIN'
 
   if (cameras.length === 0) {
     return (
@@ -32,68 +32,87 @@ function CameraTable({
         <thead>
           <tr>
             <th>Camera</th>
-            <th>Location</th>
+            <th>District</th>
+            <th>Municiplaity</th>
             <th>Resolution</th>
             <th>FPS</th>
-            <th>Last Active</th>
+            <th>Last Heartbeat</th>
             <th>Status</th>
-            {isAdministrator && (<th>Actions</th>)}
+            {isAdministrator && <th>Actions</th>}
           </tr>
         </thead>
 
         <tbody>
-          {cameras.map((camera) => (
-            <tr key={camera.id}>
-              <td>
-                <div className="cameras-main-cell">
-                  <div className="cameras-avatar">
-                    <Camera size={17} />
-                  </div>
+          {cameras.map((camera) => {
+            const resolution =
+              camera.calibration.frame_width !== null &&
+              camera.calibration.frame_height !== null
+                ? `${camera.calibration.frame_width} × ${camera.calibration.frame_height}`
+                : 'Not available'
 
-                  <div>
-                    <strong>{camera.name}</strong>
-                    <span>{camera.ipAddress}</span>
-                  </div>
-                </div>
-              </td>
+            const fps =
+              camera.worker.fps !== null
+                ? `${camera.worker.fps} FPS`
+                : '—'
 
-              <td>{camera.location}</td>
+            const lastHeartbeat = camera.worker.last_heartbeat
+              ? new Date(camera.worker.last_heartbeat).toLocaleString()
+              : 'Never'
 
-              <td>{camera.resolution}</td>
-
-              <td>{camera.fps}</td>
-
-              <td>{camera.lastActive}</td>
-
-              <td>
-                <CameraStatusBadge status={camera.status} />
-              </td>
-
-              {isAdministrator && (
+            return (
+              <tr key={camera.id}>
                 <td>
-                  <div className="cameras-actions">
-                    <button
-                      type="button"
-                      className="cameras-edit-button"
-                      onClick={() => onEdit(camera)}
-                      aria-label={`Edit ${camera.name}`}
-                    >
-                      Edit
-                    </button>
+                  <div className="cameras-main-cell">
+                    <div className="cameras-avatar">
+                      <Camera size={17} />
+                    </div>
 
-                    <button
-                      type="button"
-                      className="cameras-delete-button"
-                      onClick={() => onDelete(camera)}
-                      aria-label={`Delete ${camera.name}`}
-                    >
-                      Delete
-                    </button>
+                    <div>
+                      <strong>{camera.name}</strong>
+                      <span>
+                        {camera.worker.online
+                          ? 'Worker online'
+                          : 'Worker offline'}
+                      </span>
+                    </div>
                   </div>
                 </td>
-              )}
-            </tr>
-          ))}
+
+                <td>{camera.district}</td>
+                <td>{camera.municipality}</td>
+                <td>{resolution}</td>
+                <td>{fps}</td>
+                <td>{lastHeartbeat}</td>
+                <td>
+                  <CameraStatusBadge status={camera.status} />
+                </td>
+
+                {isAdministrator && (
+                  <td>
+                    <div className="cameras-actions">
+                      <button
+                        type="button"
+                        className="cameras-edit-button"
+                        onClick={() => onEdit(camera)}
+                        aria-label={`Edit ${camera.name}`}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className="cameras-delete-button"
+                        onClick={() => onDelete(camera)}
+                        aria-label={`Delete ${camera.name}`}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

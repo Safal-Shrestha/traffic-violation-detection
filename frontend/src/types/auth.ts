@@ -1,24 +1,11 @@
-export type UserRole = 'administrator' | 'officer'
-
-export type UserStatus = 'active' | 'inactive'
+export type UserRole = 'OFFICER' | 'ADMIN'
 
 export interface User {
-  id: number
+  id: string
   name: string
   email: string
+  badge_number: string
   role: UserRole
-  status: UserStatus
-}
-
-export interface SignupRequest {
-  name: string
-  email: string
-  password: string
-}
-
-export interface SignupResponse {
-  success: boolean
-  message: string
 }
 
 export interface LoginRequest {
@@ -27,7 +14,16 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  success: boolean
-  message: string
-  user?: User
+  access_token: string
+  expires_at: string
+  officer: User
+}
+
+export interface MeResponse {
+  officer: User
+}
+
+export interface ChangePasswordRequest {
+  current_password: string
+  new_password: string
 }

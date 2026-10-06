@@ -4,14 +4,14 @@ import { useNavigate } from 'react-router'
 import ViolationFilters from '../components/violations/ViolationFilters'
 import ViolationTable from '../components/violations/ViolationTable'
 import { getViolationsData } from '../services/violationsService'
-import type { Violation } from '../types/violations'
+import type { ViolationListItem } from '../types/violations'
 
 import '../css/violations.css'
 
 function Violations() {
   const navigate = useNavigate()
 
-  const [violations, setViolations] = useState<Violation[]>([])
+  const [violations, setViolations] = useState<ViolationListItem[]>([])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
@@ -26,23 +26,55 @@ function Violations() {
     })
   }, [])
 
+  const typeOptions = useMemo(() => {
+    const types = new Map<string, string>()
+
+    violations.forEach((violation) => {
+      types.set(
+        violation.violation_type.code,
+        violation.violation_type.name,
+      )
+    })
+
+    return Array.from(types.entries()).map(([code, name]) => ({
+      code,
+      name,
+    }))
+  }, [violations])
+
   const filteredViolations = useMemo(() => {
     return violations.filter((violation) => {
-      const matchesSearch =
-        violation.vehicleNumber
-          .toLowerCase()
-          .includes(search.toLowerCase())
+      const plate =
+        violation.vehicle?.plate_number ??
+        violation.detected_plate_raw ??
+        ''
+
+      const matchesSearch = plate
+        .toLowerCase()
+        .includes(search.toLowerCase())
 
       const matchesStatus =
         status === 'all' || violation.status === status
 
       const matchesType =
-        type === 'all' || violation.violationType === type
+        type === 'all' ||
+        violation.violation_type.code === type
+
+      const occurredDate = new Date(
+        violation.occurred_at,
+      ).toLocaleDateString('en-CA', {
+        timeZone: 'Asia/Kathmandu',
+      })
 
       const matchesDate =
-        !date || violation.date === date
+        !date || occurredDate === date
 
-      return matchesSearch && matchesStatus && matchesType && matchesDate
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesType &&
+        matchesDate
+      )
     })
   }, [violations, search, status, type, date])
 
@@ -59,23 +91,19 @@ function Violations() {
   )
 
   const pendingCount = violations.filter(
-    (violation) => violation.status === 'pending',
+    (violation) => violation.status === 'PENDING',
   ).length
 
   const confirmedCount = violations.filter(
-    (violation) => violation.status === 'confirmed',
+    (violation) => violation.status === 'CONFIRMED',
   ).length
 
   const rejectedCount = violations.filter(
-    (violation) => violation.status === 'rejected',
+    (violation) => violation.status === 'REJECTED',
   ).length
 
   return (
     <div className="violations-page">
-      {/* <div className="violations-heading">
-          <h1>Violations</h1>
-      </div> */}
-
       <div className="violations-summary">
         <div className="violations-stat-card">
           <span className="violations-stat-label">
@@ -112,6 +140,7 @@ function Violations() {
           status={status}
           type={type}
           date={date}
+          typeOptions={typeOptions}
           onSearchChange={(value) => {
             setSearch(value)
             setCurrentPage(1)
@@ -168,15 +197,20 @@ function Violations() {
             <div className="violations-pagination-controls">
               <span>
                 {startIndex + 1}–
-                {Math.min(endIndex, filteredViolations.length)} of{' '}
-                {filteredViolations.length}
+                {Math.min(
+                  endIndex,
+                  filteredViolations.length,
+                )}{' '}
+                of {filteredViolations.length}
               </span>
 
               <button
                 type="button"
                 disabled={currentPage <= 1}
                 onClick={() => {
-                  setCurrentPage((page) => Math.max(page - 1, 1))
+                  setCurrentPage((page) =>
+                    Math.max(page - 1, 1),
+                  )
                 }}
               >
                 ‹

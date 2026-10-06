@@ -1,21 +1,18 @@
-import {UserRound } from 'lucide-react'
+import { UserRound } from 'lucide-react'
 import type { User } from '../../types/users'
-import UserStatusBadge from './UserStatusBadge'
 import { useAuth } from '../../context/useAuth'
 
 interface UserTableProps {
   users: User[]
   onEdit: (user: User) => void
-  onDelete: (user: User) => void
 }
 
 function UserTable({
   users,
   onEdit,
-  onDelete,
-}: UserTableProps) {  
+}: UserTableProps) {
   const { user } = useAuth()
-  const isAdministrator = user?.role === 'administrator'
+  const isAdministrator = user?.role === 'ADMIN'
 
   return (
     <div className="users-table-wrapper">
@@ -23,11 +20,10 @@ function UserTable({
         <thead>
           <tr>
             <th>User</th>
+            <th>Badge Number</th>
             <th>Role</th>
-            <th>Status</th>
-            <th>Last Active</th>
-            <th>Joined</th>
-            {isAdministrator && (<th>Actions</th>)}
+            <th>Email</th>
+            {isAdministrator && <th>Actions</th>}
           </tr>
         </thead>
 
@@ -42,29 +38,24 @@ function UserTable({
 
                   <div>
                     <strong>{user.name}</strong>
-                    <span>{user.email}</span>
                   </div>
                 </div>
               </td>
 
+              <td className="users-muted-cell">
+                {user.badge_number}
+              </td>
+
               <td>
                 <span className={`users-role ${user.role}`}>
-                  {user.role === 'administrator'
+                  {user.role === 'ADMIN'
                     ? 'Administrator'
                     : 'Officer'}
                 </span>
               </td>
 
-              <td>
-                <UserStatusBadge status={user.status} />
-              </td>
-
               <td className="users-muted-cell">
-                {user.lastActive}
-              </td>
-
-              <td className="users-muted-cell">
-                {user.joinedDate}
+                {user.email}
               </td>
 
               {isAdministrator && (
@@ -78,15 +69,6 @@ function UserTable({
                     >
                       Edit
                     </button>
-
-                    <button
-                      type="button"
-                      className="users-delete-button"
-                      aria-label={`Delete ${user.name}`}
-                      onClick={() => onDelete(user)}
-                    >
-                      Delete
-                    </button>
                   </div>
                 </td>
               )}
@@ -95,7 +77,7 @@ function UserTable({
 
           {users.length === 0 && (
             <tr>
-              <td colSpan={6}>
+              <td colSpan={isAdministrator ? 5 : 4}>
                 <div className="users-empty-state">
                   <UserRound size={30} />
                   <strong>No users found</strong>

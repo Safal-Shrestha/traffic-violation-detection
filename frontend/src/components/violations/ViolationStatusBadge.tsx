@@ -9,17 +9,17 @@ function ViolationStatusBadge({
   status,
 }: ViolationStatusBadgeProps) {
   const statusConfig = {
-    pending: {
+    PENDING: {
       label: 'Pending',
       icon: Clock,
       className: 'pending',
     },
-    confirmed: {
+    CONFIRMED: {
       label: 'Confirmed',
       icon: CheckCircle,
       className: 'confirmed',
     },
-    rejected: {
+    REJECTED: {
       label: 'Rejected',
       icon: XCircle,
       className: 'rejected',
