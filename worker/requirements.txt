@@ -11,7 +11,6 @@ python-dotenv>=1.2.4
 # Optional, for production serving:
 # gunicorn>=22.0
 
-# NOTE (GPU): the default `pip install torch` may give a CPU-only build on Windows.
-# For NVIDIA GPUs install the CUDA build first, e.g.:
-#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-# The app auto-detects CUDA via torch.cuda.is_available() and falls back to CPU.
+# This file contains the shared worker dependencies. Docker uses
+# requirements-cpu.txt by default; select requirements-gpu.txt for the pinned
+# CUDA-enabled PyTorch pair on an NVIDIA worker host.

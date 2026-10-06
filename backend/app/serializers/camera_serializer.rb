@@ -26,6 +26,16 @@ class CameraSerializer
       installed_at: camera.installed_at&.iso8601,
       output_stream_key: camera.output_stream_key,
       signal_state_key: camera.signal_state_key,
+      provisioning: {
+        status: camera.provisioning_status.to_s.upcase,
+        source_video: camera.source_video,
+        error: camera.provisioning_status_error
+      },
+      signal: {
+        available: signal_available?(camera),
+        url: signal_url(camera),
+        last_seen_at: ApiTime.iso(camera.signal_api_last_seen_at)
+      },
       playback: {
         webrtc_url: camera.output_stream_key.present? ? "#{playback_base}/#{camera.output_stream_key}" : nil,
         hls_url: camera.output_stream_key.present? ? "#{hls_base}/#{camera.output_stream_key}/index.m3u8" : nil
@@ -58,5 +68,17 @@ class CameraSerializer
 
   def self.hls_base
     ENV.fetch("MEDIAMTX_HLS_BASE", "http://localhost:8888")
+  end
+
+  def self.signal_available?(camera)
+    camera.signal_api_base_url.present? &&
+      camera.signal_api_last_seen_at.present? &&
+      camera.signal_api_last_seen_at >= ONLINE_WINDOW.ago
+  end
+
+  def self.signal_url(camera)
+    return nil if camera.signal_api_base_url.blank? || camera.signal_state_key.blank?
+
+    "#{camera.signal_api_base_url.chomp('/')}/signal/#{camera.signal_state_key}"
   end
 end

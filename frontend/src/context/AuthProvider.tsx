@@ -12,15 +12,99 @@ interface AuthProviderProps {
   children: ReactNode
 }
 
+interface StoredAuth {
+  user: User | null
+  accessToken: string | null
+  expiresAt: string | null
+}
+
+function getStoredAuth(): StoredAuth {
+  const accessToken =
+    sessionStorage.getItem('access_token')
+
+  const expiresAt =
+    sessionStorage.getItem('expires_at')
+
+  const storedUser =
+    sessionStorage.getItem('user')
+
+  if (
+    !accessToken ||
+    !expiresAt ||
+    !storedUser
+  ) {
+    return {
+      user: null,
+      accessToken: null,
+      expiresAt: null,
+    }
+  }
+
+  const expiryTime =
+    new Date(expiresAt).getTime()
+
+  if (expiryTime <= Date.now()) {
+    sessionStorage.removeItem(
+      'access_token',
+    )
+    sessionStorage.removeItem(
+      'expires_at',
+    )
+    sessionStorage.removeItem('user')
+
+    return {
+      user: null,
+      accessToken: null,
+      expiresAt: null,
+    }
+  }
+
+  try {
+    const user =
+      JSON.parse(storedUser) as User
+
+    return {
+      user,
+      accessToken,
+      expiresAt,
+    }
+  } catch {
+    sessionStorage.removeItem(
+      'access_token',
+    )
+    sessionStorage.removeItem(
+      'expires_at',
+    )
+    sessionStorage.removeItem('user')
+
+    return {
+      user: null,
+      accessToken: null,
+      expiresAt: null,
+    }
+  }
+}
+
 export function AuthProvider({
   children,
 }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null)
+  const [initialAuth] =
+    useState<StoredAuth>(getStoredAuth)
+
+  const [user, setUser] =
+    useState<User | null>(
+      initialAuth.user,
+    )
+
   const [accessToken, setAccessToken] =
-    useState<string | null>(null)
+    useState<string | null>(
+      initialAuth.accessToken,
+    )
+
   const [expiresAt, setExpiresAt] =
-    useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+    useState<string | null>(
+      initialAuth.expiresAt,
+    )
 
   const loginUser = (
     token: string,
@@ -31,8 +115,20 @@ export function AuthProvider({
     setExpiresAt(expiry)
     setUser(loggedInUser)
 
-    sessionStorage.setItem('access_token', token)
-    sessionStorage.setItem('expires_at', expiry)
+    sessionStorage.setItem(
+      'access_token',
+      token,
+    )
+
+    sessionStorage.setItem(
+      'expires_at',
+      expiry,
+    )
+
+    sessionStorage.setItem(
+      'user',
+      JSON.stringify(loggedInUser),
+    )
   }
 
   const logoutUser = () => {
@@ -40,48 +136,16 @@ export function AuthProvider({
     setAccessToken(null)
     setExpiresAt(null)
 
-    sessionStorage.removeItem('access_token')
-    sessionStorage.removeItem('expires_at')
+    sessionStorage.removeItem(
+      'access_token',
+    )
+
+    sessionStorage.removeItem(
+      'expires_at',
+    )
+
+    sessionStorage.removeItem('user')
   }
-
-  // Restore an existing session after page refresh.
-  useEffect(() => {
-    async function restoreSession() {
-      const storedToken =
-        sessionStorage.getItem('access_token')
-
-      const storedExpiresAt =
-        sessionStorage.getItem('expires_at')
-
-      if (!storedToken || !storedExpiresAt) {
-        setIsLoading(false)
-        return
-      }
-
-      const expiryTime =
-        new Date(storedExpiresAt).getTime()
-
-      if (expiryTime <= Date.now()) {
-        logoutUser()
-        setIsLoading(false)
-        return
-      }
-
-      try {
-        const response = await getCurrentUser()
-
-        setAccessToken(storedToken)
-        setExpiresAt(storedExpiresAt)
-        setUser(response.officer)
-      } catch {
-        logoutUser()
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    restoreSession()
-  }, [])
 
   // Automatically log the user out when the token expires.
   useEffect(() => {
@@ -95,9 +159,12 @@ export function AuthProvider({
     const remainingTime =
       expiryTime - Date.now()
 
-    const timeoutId = window.setTimeout(() => {
-      logoutUser()
-    }, Math.max(remainingTime, 0))
+    const timeoutId = window.setTimeout(
+      () => {
+        logoutUser()
+      },
+      Math.max(remainingTime, 0),
+    )
 
     return () => {
       window.clearTimeout(timeoutId)
@@ -130,8 +197,9 @@ export function AuthProvider({
         accessToken,
         expiresAt,
         isAuthenticated:
-          user !== null && accessToken !== null,
-        isLoading,
+          user !== null &&
+          accessToken !== null,
+        isLoading: false,
         loginUser,
         logoutUser,
       }}

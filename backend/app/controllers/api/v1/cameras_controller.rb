@@ -47,10 +47,22 @@ module Api
           output_stream_key: "#{id}-annotated",
           signal_state_key: "camera_signal_#{id}",
           worker_status: "STOPPED",
+          provisioning_status: "REQUESTED",
           config_version: 1,
           red_grace_seconds: 0
         )
-        Camera.transaction { camera.save! }
+        Camera.transaction do
+          # Reserve capacity while the manager, rather than Rails, chooses the
+          # actual video during its claim.
+          Camera.connection.execute("SELECT pg_advisory_xact_lock(71204, 1)")
+          allocated = Camera.where.not(source_video: nil).count +
+            Camera.where(source_video: nil, provisioning_status: %w[REQUESTED ERROR]).count
+          if allocated >= Camera::DEMO_SOURCE_VIDEOS.size
+            raise ApiErrors::ApiError.new("NO_SOURCE_VIDEO_AVAILABLE",
+                                          "All demo camera videos are currently assigned.", :conflict)
+          end
+          camera.save!
+        end
         render json: CameraSerializer.call(camera), status: :created
       end
 

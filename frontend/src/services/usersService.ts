@@ -1,21 +1,44 @@
 import { usersData } from '../mock-data/users'
+
 import type {
   CreateUserRequest,
+  UpdateUserRequest,
   User,
   UsersData,
 } from '../types/users'
+
 import { apiClient } from './apiClient'
 
-const USE_MOCK_DATA = true
+const USE_MOCK_DATA = false
+
+interface OfficersApiResponse {
+  data: User[]
+  page: {
+    next_cursor: string | null
+    has_more: boolean
+  }
+}
 
 export async function getUsersData(): Promise<UsersData> {
   if (USE_MOCK_DATA) {
     return usersData
   }
 
-  return apiClient<UsersData>('/officers', {
-    method: 'GET',
-  })
+  const token =
+    sessionStorage.getItem('access_token')
+
+  const response =
+    await apiClient<OfficersApiResponse>(
+      '/officers',
+      {
+        method: 'GET',
+        token: token ?? undefined,
+      },
+    )
+
+  return {
+    users: response.data,
+  }
 }
 
 export async function createUser(
@@ -33,10 +56,35 @@ export async function createUser(
     return newUser
   }
 
-  const token = sessionStorage.getItem('access_token')
+  const token =
+    sessionStorage.getItem('access_token')
 
   return apiClient<User>('/officers', {
     method: 'POST',
+    token: token ?? undefined,
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateUser(
+  id: string,
+  data: UpdateUserRequest,
+): Promise<User> {
+  if (USE_MOCK_DATA) {
+    return {
+      id,
+      name: data.name ?? '',
+      badge_number: data.badge_number ?? '',
+      role: data.role ?? 'OFFICER',
+      email: data.email ?? '',
+    }
+  }
+
+  const token =
+    sessionStorage.getItem('access_token')
+
+  return apiClient<User>(`/officers/${id}`, {
+    method: 'PATCH',
     token: token ?? undefined,
     body: JSON.stringify(data),
   })

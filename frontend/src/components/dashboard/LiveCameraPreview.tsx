@@ -15,7 +15,6 @@ function LiveCameraPreview({
       <div className="dashboard-panel-header">
         <div>
           <h3>Live Monitoring</h3>
-          <p>Current camera activity</p>
         </div>
 
         <button
@@ -38,25 +37,35 @@ function LiveCameraPreview({
 
               <span
                 className={`camera-status ${
-                  camera.status
+                  camera.workerOnline
+                    ? 'online'
+                    : 'offline'
                 }`}
               >
-                <Circle size={8} fill="currentColor" />
-                {camera.status}
+                <Circle
+                  size={8}
+                  fill="currentColor"
+                />
+                {camera.workerOnline
+                  ? 'online'
+                  : 'offline'}
               </span>
             </div>
 
             <div className="dashboard-camera-info">
               <div>
                 <strong>{camera.name}</strong>
-                <span>{camera.location}</span>
+
+                <span>
+                  {camera.municipality}, {camera.district}
+                </span>
               </div>
 
-              {camera.status === 'online' && (
-                <small>
-                  {camera.vehiclesDetected} vehicles
-                </small>
-              )}
+              <small>
+                {camera.status === 'ACTIVE'
+                  ? 'Active camera'
+                  : 'Inactive camera'}
+              </small>
             </div>
           </button>
         ))}

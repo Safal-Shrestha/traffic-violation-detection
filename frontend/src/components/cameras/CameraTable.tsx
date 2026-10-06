@@ -7,12 +7,14 @@ interface CameraTableProps {
   cameras: CameraType[]
   onEdit: (camera: CameraType) => void
   onDelete: (camera: CameraType) => void
+  onCalibrate: (camera: CameraType) => void
 }
 
 function CameraTable({
   cameras,
   onEdit,
   onDelete,
+  onCalibrate,
 }: CameraTableProps) {
   const { user } = useAuth()
   const isAdministrator = user?.role === 'ADMIN'
@@ -38,6 +40,7 @@ function CameraTable({
             <th>FPS</th>
             <th>Last Heartbeat</th>
             <th>Status</th>
+            {isAdministrator && <th>Calibration</th>}
             {isAdministrator && <th>Actions</th>}
           </tr>
         </thead>
@@ -86,6 +89,15 @@ function CameraTable({
                 <td>
                   <CameraStatusBadge status={camera.status} />
                 </td>
+
+                {isAdministrator && (
+                  <td>
+                    <button type="button" className="camera-calibrate-button" onClick={() => onCalibrate(camera)}>
+                      {camera.calibration.calibrated ? 'Recalibrate' : 'Calibrate'}
+                    </button>
+                    <small className="camera-calibration-status">{camera.calibration.status.replaceAll('_', ' ')}</small>
+                  </td>
+                )}
 
                 {isAdministrator && (
                   <td>

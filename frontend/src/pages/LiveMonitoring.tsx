@@ -4,36 +4,93 @@ import '../css/monitoring.css'
 
 import CameraSelector from '../components/monitoring/CameraSelector'
 import LiveCameraFeed from '../components/monitoring/LiveCameraFeed'
-import SelectedVehicle from '../components/monitoring/SelectedVehicle'
-import DetectedVehicles from '../components/monitoring/DetectedVehicles'
-import AIDetections from '../components/monitoring/AIDetections'
+import AddCameraModal from '../components/monitoring/AddCameraModal'
 
-import { getMonitoringData } from '../services/monitoringService'
-import type { MonitoringData } from '../types/monitoring'
+import {
+  createCamera,
+  getCamera,
+  getCameras,
+} from '../services/monitoringService'
+
+import type {
+  Camera,
+  CameraCreateRequest,
+} from '../types/monitoring'
 
 function LiveMonitoring() {
-  const [data, setData] =
-    useState<MonitoringData | null>(null)
+  const [cameras, setCameras] =
+    useState<Camera[]>([])
 
   const [selectedCameraId, setSelectedCameraId] =
-    useState<number | null>(null)
+    useState<string | null>(null)
 
-  const [selectedVehicleId, setSelectedVehicleId] =
-    useState<number | null>(null)
+  const [selectedCamera, setSelectedCamera] =
+    useState<Camera | null>(null)
+
+  const [isLoading, setIsLoading] =
+    useState(true)
+
+  const [isAddCameraOpen, setIsAddCameraOpen] =
+    useState(false)
 
   useEffect(() => {
-    getMonitoringData().then((monitoringData) => {
-      setData(monitoringData)
-      setSelectedCameraId(
-        monitoringData.selectedCameraId,
-      )
-      setSelectedVehicleId(
-        monitoringData.selectedVehicleId,
-      )
-    })
+    async function loadCameras() {
+      try {
+        const cameraList =
+          await getCameras()
+
+        setCameras(cameraList)
+
+        if (cameraList.length > 0) {
+          setSelectedCameraId(
+            cameraList[0].id,
+          )
+        }
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadCameras()
   }, [])
 
-  if (!data || selectedCameraId === null) {
+  useEffect(() => {
+    if (!selectedCameraId) {
+      return
+    }
+
+    const cameraId =
+      selectedCameraId
+
+    async function loadSelectedCamera() {
+      const camera =
+        await getCamera(cameraId)
+
+      setSelectedCamera(camera)
+    }
+
+    loadSelectedCamera()
+  }, [selectedCameraId])
+
+  const handleAddCamera = async (
+    data: CameraCreateRequest,
+  ) => {
+    const newCamera =
+      await createCamera(data)
+
+    setCameras((currentCameras) => [
+      ...currentCameras,
+      newCamera,
+    ])
+
+    setSelectedCameraId(
+      newCamera.id,
+    )
+
+    setIsAddCameraOpen(false)
+  }
+
+  if (isLoading) {
     return (
       <div className="monitoring-loading">
         Loading live monitoring...
@@ -41,61 +98,82 @@ function LiveMonitoring() {
     )
   }
 
-  const selectedCamera =
-    data.cameras.find(
-      (camera) => camera.id === selectedCameraId,
-    ) ?? data.cameras[0]
+  if (cameras.length === 0) {
+    return (
+      <>
+        <div className="monitoring-loading">
+          <p>No cameras available.</p>
 
-  const selectedVehicle =
-    data.detectedVehicles.find(
-      (vehicle) => vehicle.id === selectedVehicleId,
-    ) ?? null
+          <button
+            type="button"
+            className="monitoring-empty-add-button"
+            onClick={() =>
+              setIsAddCameraOpen(true)
+            }
+          >
+            Add Camera
+          </button>
+        </div>
+
+        {isAddCameraOpen && (
+          <AddCameraModal
+            onClose={() =>
+              setIsAddCameraOpen(false)
+            }
+            onAdd={handleAddCamera}
+          />
+        )}
+      </>
+    )
+  }
 
   return (
     <div className="monitoring-page">
-      {/* <div className="monitoring-heading">
-        <div>
-          <h1>Live Monitoring</h1>
-        </div>
-
-        <div className="monitoring-system-status">
-          <span />
-          System Active
-        </div>
-      </div> */}
-
       <div className="monitoring-layout">
         <aside className="monitoring-sidebar">
           <div className="monitoring-sidebar-title">
             <h3>Cameras</h3>
-            <span>{data.cameras.length}</span>
+
+            <span>
+              {cameras.length}
+            </span>
           </div>
 
           <CameraSelector
-            cameras={data.cameras}
-            selectedCameraId={selectedCameraId}
-            onSelect={setSelectedCameraId}
+            cameras={cameras}
+            selectedCameraId={
+              selectedCameraId
+            }
+            onSelect={
+              setSelectedCameraId
+            }
+            onAddCamera={() =>
+              setIsAddCameraOpen(true)
+            }
           />
         </aside>
 
         <main className="monitoring-main">
-          <LiveCameraFeed camera={selectedCamera} />
-
-          <div className="monitoring-bottom-grid">
-            <SelectedVehicle vehicle={selectedVehicle} />
-
-            <AIDetections
-              detections={data.detections}
+          {selectedCamera ? (
+            <LiveCameraFeed
+              camera={selectedCamera}
             />
-          </div>
-
-          <DetectedVehicles
-            vehicles={data.detectedVehicles}
-            selectedVehicleId={selectedVehicleId}
-            onSelect={setSelectedVehicleId}
-          />
+          ) : (
+            <div className="monitoring-loading">
+              Loading camera...
+            </div>
+          )}
         </main>
       </div>
+
+      {isAddCameraOpen && (
+        <AddCameraModal
+          onClose={() =>
+            setIsAddCameraOpen(false)
+          }
+          onAdd={handleAddCamera}
+        />
+      )}
     </div>
   )
 }

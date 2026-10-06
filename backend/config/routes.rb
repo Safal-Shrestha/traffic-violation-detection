@@ -3,6 +3,9 @@ Rails.application.routes.draw do
   # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check
 
+  # Handle OPTIONS preflight requests in development
+  match "*path", to: "application#cors_preflight_check", via: :options
+
   namespace :api do
     namespace :v1 do
       post "auth/login", to: "auth#login"
@@ -10,6 +13,14 @@ Rails.application.routes.draw do
       post "auth/change-password", to: "auth#change_password"
 
       resources :cameras, only: %i[index show create update]
+      get "cameras/:camera_id/signal", to: "camera_signals#show"
+      put "cameras/:camera_id/signal", to: "camera_signals#update"
+      get "cameras/:camera_id/config", to: "camera_configs#show"
+      put "cameras/:camera_id/config", to: "camera_configs#update"
+      post "cameras/:camera_id/heartbeat", to: "worker_heartbeats#create"
+      get "worker-manager/cameras", to: "worker_manager#index"
+      post "worker-manager/cameras/:camera_id/claim", to: "worker_manager#claim"
+      post "worker-manager/cameras/:camera_id/failure", to: "worker_manager#failure"
       resources :officers, only: %i[index show create update destroy]
 
       resources :violations, only: %i[index show create] do

@@ -11,8 +11,10 @@ import CameraFilters from '../components/cameras/CameraFilters'
 import CameraTable from '../components/cameras/CameraTable'
 import EditCameraModal from '../components/cameras/EditCameraModal'
 import DeleteCameraModal from '../components/cameras/DeleteCameraModal'
+import CameraCalibrationModal from '../components/cameras/CameraCalibrationModal'
 
 import { getCamerasData } from '../services/camerasService'
+import type { CameraConfig } from '../types/cameras'
 
 import type {
   Camera as CameraType,
@@ -37,9 +39,11 @@ function Cameras() {
 
   const [deletingCamera, setDeletingCamera] =
     useState<CameraType | null>(null)
+  const [calibratingCamera, setCalibratingCamera] = useState<CameraType | null>(null)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    getCamerasData().then(setData)
+    getCamerasData().then(setData).catch(() => setLoadError('Could not load cameras from the backend.'))
   }, [])
 
   const filteredCameras = useMemo(() => {
@@ -63,7 +67,7 @@ function Cameras() {
   if (!data) {
     return (
       <div className="cameras-loading">
-        Loading cameras...
+        {loadError || 'Loading cameras...'}
       </div>
     )
   }
@@ -134,6 +138,25 @@ function Cameras() {
     setDeletingCamera(null)
   }
 
+  const handleCalibrationSaved = (config: CameraConfig) => {
+    setData((current) => current && ({
+      ...current,
+      cameras: current.cameras.map((camera) => camera.id === config.camera_id ? {
+        ...camera,
+        calibration: {
+          ...camera.calibration,
+          status: 'CALIBRATED',
+          calibrated: true,
+          frame_width: config.frame_width,
+          frame_height: config.frame_height,
+          red_grace_seconds: config.red_grace_seconds,
+          config_version: config.config_version,
+          stop_line: config.stop_line,
+        },
+      } : camera),
+    }))
+  }
+
   return (
     <div className="cameras-page">
       <div className="cameras-stats">
@@ -198,6 +221,7 @@ function Cameras() {
           cameras={filteredCameras}
           onEdit={handleEditCamera}
           onDelete={handleDeleteCamera}
+          onCalibrate={setCalibratingCamera}
         />
       </section>
 
@@ -214,6 +238,14 @@ function Cameras() {
           camera={deletingCamera}
           onClose={() => setDeletingCamera(null)}
           onConfirm={handleConfirmDelete}
+        />
+      )}
+
+      {calibratingCamera && (
+        <CameraCalibrationModal
+          camera={calibratingCamera}
+          onClose={() => setCalibratingCamera(null)}
+          onSaved={handleCalibrationSaved}
         />
       )}
     </div>

@@ -1,39 +1,72 @@
-import { Camera } from 'lucide-react'
-import type { MonitoringCamera } from '../../types/monitoring'
+import { Camera, Plus } from 'lucide-react'
+
+import type {
+  Camera as CameraType,
+} from '../../types/monitoring'
 
 interface CameraSelectorProps {
-  cameras: MonitoringCamera[]
-  selectedCameraId: number
-  onSelect: (cameraId: number) => void
+  cameras: CameraType[]
+  selectedCameraId: string | null
+  onSelect: (cameraId: string) => void
+  onAddCamera: () => void
 }
 
 function CameraSelector({
   cameras,
   selectedCameraId,
   onSelect,
+  onAddCamera,
 }: CameraSelectorProps) {
   return (
     <div className="monitoring-camera-selector">
-      {cameras.map((camera) => (
-        <button
-          key={camera.id}
-          className={`monitoring-camera-option ${
-            selectedCameraId === camera.id ? 'active' : ''
-          }`}
-          onClick={() => onSelect(camera.id)}
-        >
-          <Camera size={17} />
+      {cameras.map((camera) => {
+        const isOnline =
+          camera.worker.online
 
-          <span>
-            <strong>{camera.name}</strong>
-            <small>{camera.location}</small>
-          </span>
+        return (
+          <button
+            key={camera.id}
+            className={`monitoring-camera-option ${
+              selectedCameraId === camera.id
+                ? 'active'
+                : ''
+            }`}
+            onClick={() =>
+              onSelect(camera.id)
+            }
+          >
+            <Camera size={17} />
 
-          <span
-            className={`monitoring-camera-status ${camera.status}`}
-          />
-        </button>
-      ))}
+            <span>
+              <strong>
+                {camera.name}
+              </strong>
+
+              <small>
+                {camera.district},{' '}
+                {camera.municipality}
+              </small>
+            </span>
+
+            <span
+              className={`monitoring-camera-status ${
+                isOnline
+                  ? 'online'
+                  : 'offline'
+              }`}
+            />
+          </button>
+        )
+      })}
+
+      <button
+        type="button"
+        className="monitoring-add-camera-button"
+        onClick={onAddCamera}
+      >
+        <Plus size={17} />
+        <span>Add Camera</span>
+      </button>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { violationsData } from '../mock-data/violations'
+
 import type {
   AddViolationNoteRequest,
   ConfirmViolationRequest,
@@ -7,20 +8,38 @@ import type {
   ReopenViolationRequest,
   ViolationActionResponse,
   ViolationDetail,
+  ViolationListItem,
   ViolationsData,
 } from '../types/violations'
+
 import { apiClient } from './apiClient'
 
-const USE_MOCK_DATA = true
+const USE_MOCK_DATA = false
+
+interface ViolationsApiResponse {
+  data: ViolationListItem[]
+  page: {
+    next_cursor: string | null
+    has_more: boolean
+  }
+}
 
 export async function getViolationsData(): Promise<ViolationsData> {
   if (USE_MOCK_DATA) {
     return violationsData
   }
 
-  return apiClient<ViolationsData>('/violations', {
-    method: 'GET',
-  })
+  const response =
+    await apiClient<ViolationsApiResponse>(
+      '/violations',
+      {
+        method: 'GET',
+      },
+    )
+
+  return {
+    violations: response.data,
+  }
 }
 
 export async function getViolation(
@@ -57,16 +76,24 @@ export async function getViolation(
     }
   }
 
-  return apiClient<ViolationDetail>(`/violations/${id}`, {
-    method: 'GET',
-  })
+  const token =
+    sessionStorage.getItem('access_token')
+
+  return apiClient<ViolationDetail>(
+    `/violations/${id}`,
+    {
+      method: 'GET',
+      token: token ?? undefined,
+    },
+  )
 }
 
 export async function confirmViolation(
   id: string,
   data: ConfirmViolationRequest = {},
 ): Promise<ViolationActionResponse> {
-  const token = sessionStorage.getItem('access_token')
+  const token =
+    sessionStorage.getItem('access_token')
 
   return apiClient<ViolationActionResponse>(
     `/violations/${id}/confirm`,
@@ -82,7 +109,8 @@ export async function rejectViolation(
   id: string,
   data: RejectViolationRequest,
 ): Promise<ViolationActionResponse> {
-  const token = sessionStorage.getItem('access_token')
+  const token =
+    sessionStorage.getItem('access_token')
 
   return apiClient<ViolationActionResponse>(
     `/violations/${id}/reject`,
@@ -98,7 +126,8 @@ export async function reopenViolation(
   id: string,
   data: ReopenViolationRequest,
 ): Promise<ViolationActionResponse> {
-  const token = sessionStorage.getItem('access_token')
+  const token =
+    sessionStorage.getItem('access_token')
 
   return apiClient<ViolationActionResponse>(
     `/violations/${id}/reopen`,
@@ -114,7 +143,8 @@ export async function addViolationNote(
   id: string,
   data: AddViolationNoteRequest,
 ): Promise<ViolationActionResponse> {
-  const token = sessionStorage.getItem('access_token')
+  const token =
+    sessionStorage.getItem('access_token')
 
   return apiClient<ViolationActionResponse>(
     `/violations/${id}/notes`,
@@ -129,10 +159,14 @@ export async function addViolationNote(
 export async function getViolationEvidence(
   id: string,
 ): Promise<Evidence[]> {
+  const token =
+    sessionStorage.getItem('access_token')
+
   return apiClient<Evidence[]>(
     `/violations/${id}/evidence`,
     {
       method: 'GET',
+      token: token ?? undefined,
     },
   )
 }
@@ -140,7 +174,14 @@ export async function getViolationEvidence(
 export async function getEvidence(
   id: string,
 ): Promise<Evidence> {
-  return apiClient<Evidence>(`/evidence/${id}`, {
-    method: 'GET',
-  })
+  const token =
+    sessionStorage.getItem('access_token')
+
+  return apiClient<Evidence>(
+    `/evidence/${id}`,
+    {
+      method: 'GET',
+      token: token ?? undefined,
+    },
+  )
 }

@@ -21,13 +21,36 @@ import type { DashboardData } from '../types/dashboard'
 function Dashboard() {
   const navigate = useNavigate()
 
-  const [data, setData] = useState<DashboardData | null>(
-    null,
-  )
+  const [data, setData] =
+    useState<DashboardData | null>(null)
+
+  const [error, setError] =
+    useState<string | null>(null)
 
   useEffect(() => {
-    getDashboardData().then(setData)
+    async function loadDashboard() {
+      try {
+        const dashboardData =
+          await getDashboardData()
+
+        setData(dashboardData)
+      } catch {
+        setError(
+          'Unable to load dashboard data.',
+        )
+      }
+    }
+
+    loadDashboard()
   }, [])
+
+  if (error) {
+    return (
+      <div className="dashboard-loading">
+        {error}
+      </div>
+    )
+  }
 
   if (!data) {
     return (
@@ -74,12 +97,16 @@ function Dashboard() {
           violations={data.violationSummary}
         />
 
-        <CameraStatus cameras={data.cameras} />
+        <CameraStatus
+          cameras={data.cameras}
+        />
       </div>
 
       <LiveCameraPreview
         cameras={data.cameras}
-        onCameraClick={() => navigate('/live')}
+        onCameraClick={() =>
+          navigate('/live')
+        }
       />
 
       <RecentViolations

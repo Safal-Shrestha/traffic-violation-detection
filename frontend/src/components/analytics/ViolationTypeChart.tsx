@@ -22,12 +22,14 @@ function ViolationTypeChart({
       <div className="analytics-chart-header">
         <div>
           <h2>Violations by Type</h2>
-          <p>Distribution of detected violations</p>
         </div>
       </div>
 
       <div className="analytics-chart">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer
+          width="100%"
+          height="100%"
+        >
           <BarChart data={data}>
             <CartesianGrid
               strokeDasharray="3 3"
@@ -45,7 +47,22 @@ function ViolationTypeChart({
               fontSize={11}
             />
 
-            <Tooltip />
+            <Tooltip
+              contentStyle={{
+                backgroundColor:
+                  'var(--bg-primary)',
+                border:
+                  '1px solid var(--border-color)',
+                borderRadius: '7px',
+                color: 'var(--text-primary)',
+              }}
+              labelStyle={{
+                color: 'var(--text-primary)',
+              }}
+              itemStyle={{
+                color: 'var(--text-primary)',
+              }}
+            />
 
             <Bar
               dataKey="count"

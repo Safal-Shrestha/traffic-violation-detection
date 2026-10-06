@@ -38,6 +38,14 @@ class EvidenceStorage
     raise ObjectNotFound, "evidence object was not found in storage"
   end
 
+  def object_exists?(storage_key = nil, **options)
+    storage_key ||= options[:storage_key] || options[:key]
+    client.head_object(bucket: @bucket, key: storage_key)
+    true
+  rescue Aws::S3::Errors::NotFound
+    false
+  end
+
   private
 
   def ensure_bucket!

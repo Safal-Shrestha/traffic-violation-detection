@@ -181,6 +181,10 @@
   cursor: pointer;
 }
 
+.dashboard-text-button:hover {
+  color: var(--text-secondary);
+}
+
 .dashboard-camera-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -189,6 +193,7 @@
 }
 
 .dashboard-camera-card {
+  width: 100%;
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--border-color);
@@ -201,6 +206,13 @@
 
 .dashboard-camera-card:hover {
   border-color: var(--text-secondary);
+}
+
+.dashboard-camera-card:focus-visible,
+.dashboard-text-button:focus-visible,
+.dashboard-view-button:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
 }
 
 .dashboard-camera-image {
@@ -247,6 +259,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .dashboard-camera-info strong {
@@ -257,6 +270,11 @@
 .dashboard-camera-info small {
   color: var(--text-muted);
   font-size: 11px;
+}
+
+.dashboard-camera-info span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Recent violations */
@@ -280,8 +298,8 @@
 
 .dashboard-table {
   width: 100%;
-  border-collapse: collapse;
   min-width: 700px;
+  border-collapse: collapse;
 }
 
 .dashboard-table th,
@@ -372,8 +390,8 @@
 .camera-status-summary {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  padding: 20px;
   gap: 12px;
+  padding: 20px;
 }
 
 .camera-status-summary > div {

@@ -39,9 +39,16 @@ function ViolationTrendChart({
 
             <Tooltip
               contentStyle={{
-                backgroundColor: '#9fa3aa',
-                border: '1px solid #4b5563',
-                borderRadius: '8px',
+                backgroundColor: 'var(--bg-primary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '7px',
+                color: 'var(--text-primary)',
+              }}
+              labelStyle={{
+                color: 'var(--text-primary)',
+              }}
+              itemStyle={{
+                color: 'var(--text-primary)',
               }}
             />
 

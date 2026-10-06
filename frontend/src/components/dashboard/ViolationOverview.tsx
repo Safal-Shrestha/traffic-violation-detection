@@ -17,7 +17,6 @@ function ViolationOverview({
       <div className="dashboard-panel-header">
         <div>
           <h3>Violation Overview</h3>
-          <p>Today's detected violations</p>
         </div>
 
         <strong>{total}</strong>

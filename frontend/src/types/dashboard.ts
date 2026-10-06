@@ -10,22 +10,22 @@ export interface ViolationSummary {
   count: number
 }
 
-export interface CameraPreview {
-  id: number
+export interface CameraPreview {  
+  id: string
   name: string
-  location: string
-  status: 'online' | 'offline'
-  vehiclesDetected: number
-  image: string
+  district: string
+  municipality: string
+  status: 'ACTIVE' | 'INACTIVE'
+  workerOnline: boolean
 }
 
 export interface RecentViolation {
-  id: number
-  vehicleNumber: string
-  violation: string
+  id: string
+  plate: string | null
+  violationType: string
   camera: string
-  time: string
-  status: 'pending' | 'confirmed' | 'rejected'
+  occurredAt: string
+  status: 'PENDING' | 'CONFIRMED' | 'REJECTED'
 }
 
 export interface DashboardData {

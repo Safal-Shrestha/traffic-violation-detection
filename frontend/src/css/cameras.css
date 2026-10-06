@@ -18,6 +18,71 @@
   opacity: 0.9;
 }
 
+.camera-calibrate-button,
+.camera-calibration-secondary,
+.camera-calibration-toolbar button {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.camera-calibration-status {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.camera-calibration-modal {
+  width: min(900px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.camera-calibration-header,
+.camera-calibration-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+}
+
+.camera-calibration-header { border-bottom: 1px solid var(--border-color); }
+.camera-calibration-header h2 { margin: 0 0 5px; font-size: 17px; }
+.camera-calibration-header p,
+.camera-calibration-hint { margin: 0; color: var(--text-secondary); font-size: 12px; }
+.camera-calibration-body { padding: 16px 20px; }
+.camera-calibration-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: var(--text-secondary); font-size: 12px; }
+.camera-calibration-stage { position: relative; width: 100%; overflow: hidden; background: #111; }
+.camera-calibration-stage video { display: block; width: 100%; height: 100%; object-fit: fill; }
+.camera-calibration-overlay { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+.camera-calibration-overlay line { stroke: #ff3b30; stroke-width: 5; vector-effect: non-scaling-stroke; }
+.camera-calibration-overlay circle { fill: #ff3b30; stroke: white; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.camera-calibration-hint { margin-top: 8px; }
+.camera-calibration-fields { display: grid; grid-template-columns: 1fr 220px; gap: 14px; margin-top: 16px; }
+.camera-calibration-fields label { display: grid; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.camera-calibration-fields select,
+.camera-calibration-fields input { min-height: 36px; padding: 7px 9px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-primary); color: var(--text-primary); font: inherit; }
+.camera-calibration-error { color: #c0392b; font-size: 12px; }
+.camera-calibration-message { padding: 24px; color: var(--text-secondary); text-align: center; }
+.camera-calibration-footer { border-top: 1px solid var(--border-color); }
+.camera-calibration-footer button:disabled { cursor: not-allowed; opacity: .55; }
+
+@media (max-width: 640px) {
+  .camera-calibration-fields { grid-template-columns: 1fr; }
+  .camera-calibration-header, .camera-calibration-body, .camera-calibration-footer { padding-left: 14px; padding-right: 14px; }
+}
+
 /* Stats */
 
 .cameras-stats {

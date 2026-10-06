@@ -8,7 +8,7 @@ import EditUserModal from '../components/users/EditUserModal'
 // import DeleteUserModal from '../components/users/DeleteUserModal'
 import AddUserModal from '../components/users/AddUserModal'
 
-import { createUser,getUsersData } from '../services/usersService'
+import { createUser,getUsersData,updateUser } from '../services/usersService'
 import type { CreateUserRequest, User, UserRole, UsersData } from '../types/users'
 
 import '../css/users.css'
@@ -74,7 +74,17 @@ function Users() {
     setEditingUser(user)
   }
 
-  const handleSaveUser = (updatedUser: User) => {
+  const handleSaveUser = async (
+    updatedUser: User,
+  ) => {
+    const updatedUserFromApi =
+      await updateUser(updatedUser.id, {
+        name: updatedUser.name,
+        badge_number: updatedUser.badge_number,
+        email: updatedUser.email,
+        role: updatedUser.role,
+      })
+
     setData((currentData) => {
       if (!currentData) {
         return currentData
@@ -83,7 +93,9 @@ function Users() {
       return {
         ...currentData,
         users: currentData.users.map((user) =>
-          user.id === updatedUser.id ? updatedUser : user,
+          user.id === updatedUserFromApi.id
+            ? updatedUserFromApi
+            : user,
         ),
       }
     })
