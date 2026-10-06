@@ -1,4 +1,4 @@
-"""Provision a video publisher on B and a detection worker on C from Rails on A."""
+"""Provision a Linux video publisher and Docker worker from the WSL manager."""
 import base64
 import json
 import os
@@ -8,6 +8,7 @@ import socket
 import subprocess
 import time
 import urllib.request
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -19,10 +20,11 @@ MEDIAMTX_URL = os.getenv("MEDIAMTX_URL", "rtsp://127.0.0.1:8554").rstrip("/")
 VIDEO_PUBLISH_URL = os.getenv("VIDEO_PUBLISH_URL", MEDIAMTX_URL).rstrip("/")
 MEDIAMTX_HOST = os.getenv("MEDIAMTX_HOST", "127.0.0.1")
 ADVERTISE_HOST = os.environ["ADVERTISE_HOST"]
-# The manager runs on laptop A. Source videos and MediaMTX live on B; the
-# detection containers and model weights live on C. SSH runs the local parts on
-# their owning machines while the manager remains the single orchestrator.
+# SSH can run the video publisher on a remote Linux or Windows host. The worker
+# can run in Docker locally through Docker Desktop or on a remote Docker host.
 VIDEO_SSH_TARGET = os.getenv("VIDEO_SSH_TARGET", "")
+# Remote video hosts may be Windows (PowerShell) or Linux (SSH shell).
+VIDEO_SSH_MODE = os.getenv("VIDEO_SSH_MODE", "powershell")
 WORKER_SSH_TARGET = os.getenv("WORKER_SSH_TARGET", "")
 VIDEO_DIR = os.path.abspath(os.getenv("VIDEO_DIR", "../infrastructure/media/videos"))
 VIDEO_DIR_ON_B = os.getenv("VIDEO_DIR_ON_B", "")
@@ -30,6 +32,7 @@ MODEL_DIR_ON_C = os.getenv("MODEL_DIR_ON_C", "")
 WORKER_BUILD_CONTEXT_ON_C = os.getenv("WORKER_BUILD_CONTEXT_ON_C", "")
 WORKER_IMAGE = os.getenv("WORKER_IMAGE", "traffic-worker:demo")
 WORKER_DOCKER_CONFIG = "/tmp/traffic-worker-manager-docker"
+WORKER_DOCKER_NETWORK = os.getenv("WORKER_DOCKER_NETWORK", "host")
 MEDIAMTX_API_USER = os.getenv("MEDIAMTX_API_USER", "worker")
 MEDIAMTX_API_PASS = os.getenv("MEDIAMTX_API_PASS", "change-me")
 WORKER_BUILD_CONTEXT = os.path.abspath(os.getenv("WORKER_BUILD_CONTEXT", "../worker"))
@@ -61,6 +64,17 @@ def port_available(port):
             detail = probe.stderr.strip() or probe.stdout.strip() or "SSH connection failed"
             raise RuntimeError(f"SSH port probe failed: {detail}")
         return probe.returncode == 0
+    if WORKER_DOCKER_NETWORK == "bridge" and os.name == "posix" and os.getenv("WSL_INTEROP"):
+        powershell = shutil.which("powershell.exe")
+        if powershell:
+            script = (
+                f"$listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Any, {port}); "
+                "try { $listener.Start(); exit 0 } catch { exit 1 } "
+                "finally { if ($listener) { $listener.Stop() } }"
+            )
+            result = subprocess.run([powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+                                    check=False, capture_output=True, timeout=5)
+            return result.returncode == 0
     with socket.socket() as sock:
         return sock.connect_ex(("0.0.0.0", port)) != 0
 
@@ -126,6 +140,20 @@ def prepare_worker_docker_config():
         ["python3", "-c", write_config, WORKER_DOCKER_CONFIG, config])
 
 
+def local_docker(command, *, check=True):
+    """Use a clean client config so Docker Desktop credential helpers are optional."""
+    config_dir = Path(WORKER_DOCKER_CONFIG)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "config.json").write_text(json.dumps({"auths": {}, "credsStore": ""}))
+    env = os.environ.copy()
+    env["DOCKER_CONFIG"] = str(config_dir)
+    result = subprocess.run(command, check=False, text=True, capture_output=True, env=env)
+    if check and result.returncode:
+        detail = "\n".join(part.strip() for part in (result.stderr, result.stdout) if part.strip())
+        raise RuntimeError(detail or f"command exited with status {result.returncode}")
+    return result
+
+
 def worker_docker(command, *, check=True):
     return ssh(WORKER_SSH_TARGET,
                ["env", f"DOCKER_CONFIG={WORKER_DOCKER_CONFIG}", *command], check=check)
@@ -143,10 +171,9 @@ def ensure_worker_image():
         return
     if shutil.which("docker") is None:
         raise RuntimeError("docker CLI is required when WORKER_SSH_TARGET is not configured")
-    result = subprocess.run(["docker", "image", "inspect", WORKER_IMAGE],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    result = local_docker(["docker", "image", "inspect", WORKER_IMAGE], check=False)
     if result.returncode:
-        subprocess.run(["docker", "build", "-t", WORKER_IMAGE, WORKER_BUILD_CONTEXT], check=True)
+        local_docker(["docker", "build", "-t", WORKER_IMAGE, WORKER_BUILD_CONTEXT])
 
 
 def start_camera(camera, control_port, signal_port):
@@ -156,11 +183,16 @@ def start_camera(camera, control_port, signal_port):
     video_dir = VIDEO_DIR_ON_B if remote_video else VIDEO_DIR
     source = os.path.join(video_dir, camera["source_video"])
     if remote_video:
-        check_script = (
-            f"if (-not (Test-Path -LiteralPath {powershell_literal(source)} -PathType Leaf)) "
-            "{ exit 2 }"
-        )
-        check = ssh_powershell(VIDEO_SSH_TARGET, check_script, check=False, timeout=15)
+        if VIDEO_SSH_MODE == "linux":
+            check = ssh(VIDEO_SSH_TARGET, ["test", "-f", source], check=False, timeout=15)
+        elif VIDEO_SSH_MODE == "powershell":
+            check_script = (
+                f"if (-not (Test-Path -LiteralPath {powershell_literal(source)} -PathType Leaf)) "
+                "{ exit 2 }"
+            )
+            check = ssh_powershell(VIDEO_SSH_TARGET, check_script, check=False, timeout=15)
+        else:
+            raise RuntimeError("VIDEO_SSH_MODE must be 'linux' or 'powershell'")
         if check.returncode:
             raise RuntimeError(f"source video does not exist on laptop B: {source}")
     elif not os.path.isfile(source):
@@ -168,7 +200,7 @@ def start_camera(camera, control_port, signal_port):
 
     ffmpeg_name = f"traffic-ffmpeg-{camera_id}"
     worker_name = f"traffic-worker-{camera_id}"
-    if remote_video:
+    if remote_video and VIDEO_SSH_MODE == "powershell":
         pid_file = ffmpeg_name + ".pid"
         ffmpeg_args = ["-nostdin", "-loglevel", "warning", "-re", "-stream_loop", "-1",
                        "-i", source, "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
@@ -189,10 +221,26 @@ def start_camera(camera, control_port, signal_port):
             "$process.Id | Set-Content -LiteralPath $pidFile -NoNewline"
         )
         ssh_powershell(VIDEO_SSH_TARGET, script, timeout=30)
+    elif remote_video:
+        pid_file = f"/tmp/{ffmpeg_name}.pid"
+        log_file = f"/tmp/{ffmpeg_name}.log"
+        ffmpeg_args = ["ffmpeg", "-nostdin", "-loglevel", "warning", "-re", "-stream_loop", "-1",
+                       "-i", source, "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
+                       "-g", "30", "-bf", "0", "-an", "-f", "rtsp", "-rtsp_transport", "tcp",
+                       f"{VIDEO_PUBLISH_URL}/{raw_path}"]
+        stop_old = (
+            f"if [ -f {shlex.quote(pid_file)} ]; then "
+            f"kill \"$(cat {shlex.quote(pid_file)})\" 2>/dev/null || true; "
+            f"rm -f {shlex.quote(pid_file)}; fi; "
+        )
+        launch = (
+            stop_old + f"nohup {shlex.join(ffmpeg_args)} > {shlex.quote(log_file)} 2>&1 "
+            f"< /dev/null & echo $! > {shlex.quote(pid_file)}"
+        )
+        ssh(VIDEO_SSH_TARGET, ["bash", "-lc", launch], timeout=30)
     else:
-        subprocess.run(["docker", "rm", "-f", ffmpeg_name], check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run([
+        local_docker(["docker", "rm", "-f", ffmpeg_name], check=False)
+        local_docker([
             "docker", "run", "-d", "--name", ffmpeg_name, "--network", "host",
             "-v", f"{VIDEO_DIR}:/videos:ro", "linuxserver/ffmpeg:9.0-cli-ls84",
             "-re", "-stream_loop", "-1", "-i", f"/videos/{camera['source_video']}",
@@ -215,11 +263,17 @@ def start_camera(camera, control_port, signal_port):
         "SIGNAL_CONTROL_TOKEN": os.environ["SIGNAL_CONTROL_TOKEN"],
         "MEDIAMTX_API_USER": MEDIAMTX_API_USER,
         "MEDIAMTX_API_PASS": MEDIAMTX_API_PASS,
+        "DEVICE": os.getenv("WORKER_DEVICE", ""),
     }
-    command = [
-        "docker", "run", "-d", "--name", worker_name, "--network", "host",
-        "-v", f"{MODEL_DIR_ON_C or MODEL_DIR}:/models:ro",
-    ]
+    command = ["docker", "run", "-d", "--name", worker_name]
+    if WORKER_DOCKER_NETWORK == "host":
+        command.extend(["--network", "host"])
+    elif WORKER_DOCKER_NETWORK == "bridge":
+        command.extend(["--network", "bridge", "-p", f"{control_port}:{control_port}",
+                        "-p", f"{signal_port}:{signal_port}"])
+    else:
+        raise RuntimeError("WORKER_DOCKER_NETWORK must be 'host' or 'bridge'")
+    command.extend(["-v", f"{MODEL_DIR_ON_C or MODEL_DIR}:/models:ro"])
     for key, value in env.items():
         command.extend(["-e", f"{key}={value}"])
     command.extend(["-e", "MODEL_PATH=/models/vehicle_best.pt",
@@ -229,9 +283,8 @@ def start_camera(camera, control_port, signal_port):
         worker_docker(["docker", "rm", "-f", worker_name], check=False)
         worker_docker(command)
     else:
-        subprocess.run(["docker", "rm", "-f", worker_name], check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(command, check=True)
+        local_docker(["docker", "rm", "-f", worker_name], check=False)
+        local_docker(command)
     processes[camera_id] = {
         "ffmpeg": ffmpeg_name,
         "worker": worker_name,
@@ -282,6 +335,15 @@ def reconcile():
 
 def stop_video_publisher(camera_id):
     pid_file = f"traffic-ffmpeg-{camera_id}.pid"
+    if VIDEO_SSH_MODE == "linux":
+        remote_pid_file = f"/tmp/{pid_file}"
+        script = (
+            f"if [ -f {shlex.quote(remote_pid_file)} ]; then "
+            f"kill \"$(cat {shlex.quote(remote_pid_file)})\" 2>/dev/null || true; "
+            f"rm -f {shlex.quote(remote_pid_file)}; fi"
+        )
+        ssh(VIDEO_SSH_TARGET, ["bash", "-lc", script], check=False, timeout=15)
+        return
     script = (
         f"$pidFile = Join-Path $env:TEMP {powershell_literal(pid_file)}; "
         "if (Test-Path -LiteralPath $pidFile) { "
@@ -293,8 +355,8 @@ def stop_video_publisher(camera_id):
 
 
 def main():
-    if bool(VIDEO_SSH_TARGET) != bool(WORKER_SSH_TARGET):
-        raise RuntimeError("Configure both VIDEO_SSH_TARGET and WORKER_SSH_TARGET for the A/B/C deployment")
+    if VIDEO_SSH_TARGET and VIDEO_SSH_MODE not in {"linux", "powershell"}:
+        raise RuntimeError("VIDEO_SSH_MODE must be 'linux' or 'powershell'")
     print(f"worker manager polling {BACKEND_URL} every {POLL_SECONDS:g}s", flush=True)
     while True:
         try:

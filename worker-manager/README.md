@@ -1,20 +1,26 @@
 # Worker manager
 
-Run this process on laptop A with Rails. It polls Rails for cameras awaiting
-provisioning. Rails reserves an unused demo video when the camera is created;
-the manager starts FFmpeg on laptop B over SSH and starts the per-camera worker
-container on laptop C over SSH. See [deployment.md](../deployment.md) for the
-complete A/B/C setup, required software, environment variables, and firewall
-rules.
+Current setup: run this process in WSL on Windows `192.168.1.5` beside Rails.
+It polls Rails for cameras awaiting provisioning, starts native FFmpeg on Linux
+`192.168.1.9` over SSH, and starts the CPU-only worker through the local Docker
+Desktop engine. The worker uses bridge networking with published ports. See
+[deployment.md](../deployment.md) for SSH setup, Docker Desktop integration,
+environment variables, and firewall rules.
 
-On A, copy `.env.example` to `.env`, configure SSH targets and LAN addresses,
-then run:
+The prior three-laptop arrangement (remote video host and remote worker host)
+is retained in `.env.example` as commented settings. To restore it, configure
+both SSH targets and host networking as described in the legacy section of
+[deployment.md](../deployment.md).
+
+In WSL, copy `.env.example` to `.env`, configure the Linux video path and shared
+secrets, authorize the WSL SSH key on Linux, enable Docker Desktop integration
+for the distro, then run:
 
 ```bash
 python3 -m pip install -r requirements.txt
 python3 manager.py
 ```
 
-The manager builds `WORKER_IMAGE` on C from `WORKER_BUILD_CONTEXT_ON_C` when it
-is missing. The model weights are mounted from `MODEL_DIR_ON_C` in each worker.
-For a single-host setup, omit both SSH targets and use the local fallback paths.
+The manager builds `WORKER_IMAGE` locally from `WORKER_BUILD_CONTEXT` when it
+is missing and mounts `MODEL_DIR` in each worker. It uses SSH only for the
+Linux video host; an empty `WORKER_SSH_TARGET` selects Docker Desktop locally.

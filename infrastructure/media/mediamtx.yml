@@ -9,15 +9,27 @@ api: yes
 apiAddress: :9997
 
 authInternalUsers:
-  - user: any
-    pass:
+# Previous unauthenticated RTSP pattern (kept for reference):
+#  - user: any
+#    pass:
+#    ips: []
+#    permissions:
+#      - action: publish
+#      - action: read
+#      - action: playback
+
+# Current RTSP account used by FFmpeg and workers.
+  - user: user
+    pass: mediamtx
     ips: []
     permissions:
       - action: publish
       - action: read
       - action: playback
+
+# Separate account for worker MediaMTX API calls.
   - user: worker
-    pass: change-me
+    pass: mediamtx
     ips: []            # a LAN filter can fail behind Docker NAT; the isolated defense network is the boundary
     permissions:
       - action: api

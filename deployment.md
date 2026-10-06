@@ -1,4 +1,61 @@
-# Three-laptop deployment (A / B / C)
+# Current deployment (Windows + WSL and Linux)
+
+The current topology keeps Rails and the worker manager in WSL on Windows
+`192.168.1.5`. MediaMTX, MinIO, the frontend, and source videos run on Linux
+`192.168.1.9`. The CPU-only detection worker runs as a Docker Desktop container
+managed locally by the WSL worker manager; it does not use a separate SSH target.
+
+## Current request and stream flow
+
+1. The browser loads the frontend from Linux `.9` and calls Rails at
+   `http://192.168.1.5:3000`.
+2. The manager in WSL claims the camera from Rails.
+3. Over SSH, the manager starts native Linux FFmpeg on `.9`; FFmpeg publishes
+   to MediaMTX at `.9:8554` using the RTSP `user` account.
+4. The manager starts the worker container through Docker Desktop. The
+   container reads/writes RTSP at `.9:8554`, calls Rails at `.5:3000`, and
+   exposes its control/signal ports through Docker Desktop to Windows `.5`.
+5. The worker uses the separate `worker` account for MediaMTX API calls.
+
+## Configure the current machines
+
+### Windows / WSL at 192.168.1.5
+
+- Start Docker Desktop and enable WSL integration for the distro that runs the
+  manager. From that distro, `docker info` must reach the Docker Desktop engine.
+- Keep Rails bound to `0.0.0.0:3000`. WSL networking must allow the Linux laptop
+  to reach Windows `.5:3000`; use mirrored networking or a Windows port proxy
+  and firewall rule if the distro uses NAT.
+- In WSL, add the Linux host key once and authorize the WSL key on Linux as
+  described below. The manager's `.env` uses `VIDEO_SSH_TARGET=safal@192.168.1.9`
+  and `VIDEO_SSH_MODE=linux`; leave `WORKER_SSH_TARGET` empty.
+- Set `VIDEO_DIR_ON_B` to the Linux checkout's
+  `infrastructure/media/videos` directory. Keep worker build/model paths local
+  to WSL (`../worker`). The worker image uses `requirements-cpu.txt` and runs
+  with `DEVICE=cpu`.
+- Use bridge networking for the local Docker Desktop worker. Ports allocated
+  by the manager are published to Windows `.5`, where MediaMTX on `.9` can
+  reach the worker's `/hold` callback.
+
+### Linux at 192.168.1.9
+
+- Install and start OpenSSH server, Docker Engine/Compose, Node.js, and native
+  `ffmpeg`; the SSH account `safal` must be able to run FFmpeg and Docker.
+- Add the WSL manager's public key to `safal`'s `~/.ssh/authorized_keys`. From
+  WSL, `ssh-copy-id -i ~/.ssh/id_ed25519.pub safal@192.168.1.9` can do this
+  after interactive password login is enabled. Then verify with
+  `ssh -o BatchMode=yes safal@192.168.1.9 'command -v ffmpeg'`.
+- Start MediaMTX and MinIO from the repository compose files and start Vite
+  with `--host 0.0.0.0`. MediaMTX's RTSP account is `user` / `mediamtx`; the
+  API account remains `worker` / `mediamtx`. MinIO uses `minio-user` /
+  `minio-pw` in this development setup.
+- Allow inbound TCP `22`, `8554`, `8888`, `8889`, and `9000` as needed. Allow
+  `9997` from `.5` only, plus UDP `8189` for WebRTC viewers.
+
+## Previous three-laptop deployment (A / B / C, retained for reference)
+
+The following layout is the previous deployment pattern. Its settings remain
+below so they can be reused, but the current setup above is the active target.
 
 This setup keeps the Rails API and worker manager on laptop A, the browser UI,
 MediaMTX, MinIO, and the four source videos on laptop B, and one Dockerized
