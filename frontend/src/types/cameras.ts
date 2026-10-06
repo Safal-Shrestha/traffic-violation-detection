@@ -1,7 +1,7 @@
 export type CameraStatus = 'online' | 'offline'
 
 export interface Camera {
-  id: number
+  id: string | number
   name: string
   location: string
   status: CameraStatus
@@ -10,6 +10,10 @@ export interface Camera {
   ipAddress: string
   lastActive: string
   installedDate: string
+  provisioningStatus?: string
+  provisioningError?: string | null
+  calibrationStatus?: string
+  configVersion?: number
 }
 
 export interface CamerasData {

@@ -2,6 +2,8 @@
 
 An automated, edge-distributed traffic violation detection system built using computer vision and deep learning. The system identifies traffic light violations at intersections using Nepali number plate recognition (ANPR), processes feeds locally on edge workers, and delivers timestamped evidence to a central review dashboard for traffic authorities.
 
+For the current three-laptop A/B/C camera provisioning setup, see [deployment.md](deployment.md).
+
 ---
 
 ## Key Features

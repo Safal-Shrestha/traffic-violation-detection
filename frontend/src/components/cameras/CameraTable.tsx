@@ -7,12 +7,14 @@ interface CameraTableProps {
   cameras: CameraType[]
   onEdit: (camera: CameraType) => void
   onDelete: (camera: CameraType) => void
+  onCalibrate: (camera: CameraType) => void
 }
 
 function CameraTable({
   cameras,
   onEdit,
   onDelete,
+  onCalibrate,
 }: CameraTableProps) {
   const { user } = useAuth()
   const isAdministrator = user?.role === 'administrator'
@@ -72,6 +74,14 @@ function CameraTable({
               {isAdministrator && (
                 <td>
                   <div className="cameras-actions">
+                    <button
+                      type="button"
+                      className="cameras-edit-button"
+                      onClick={() => onCalibrate(camera)}
+                      aria-label={`Configure ${camera.name}`}
+                    >
+                      {camera.calibrationStatus === 'CALIBRATED' ? 'Reconfigure' : 'Configure'}
+                    </button>
                     <button
                       type="button"
                       className="cameras-edit-button"

@@ -3,7 +3,7 @@ import type { User } from '../types/auth'
 
 export interface AuthContextType {
   user: User | null
-  loginUser: (user: User, rememberMe: boolean) => void
+  loginUser: (user: User, token: string, rememberMe: boolean) => void
   logoutUser: () => void
 }
 

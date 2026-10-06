@@ -28,7 +28,7 @@ class Api::V1::CamerasControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, body.dig("signal", "available")
     assert_nil body.dig("signal", "url")
     assert_equal "REQUESTED", body.dig("provisioning", "status")
-    assert_equal "junction1.mp4", body.dig("provisioning", "source_video")
+    assert_nil body.dig("provisioning", "source_video"), "the manager selects the source when it claims provisioning"
     assert_equal "AWAITING_WORKER", body.dig("calibration", "status")
     assert_equal false, body.dig("calibration", "calibrated")
     assert_equal 1, body.dig("calibration", "config_version")

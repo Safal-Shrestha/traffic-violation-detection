@@ -43,12 +43,14 @@ function Login() {
         password,
       })
 
-      if (!response.success || !response.user) {
-        setError(response.message)
-        return
-      }
-
-      loginUser(response.user, rememberMe)
+      const officer = response.officer
+      loginUser({
+        id: officer.id,
+        name: officer.name,
+        email: officer.email,
+        role: officer.role.toLowerCase() === 'admin' ? 'administrator' : 'officer',
+        status: 'active',
+      }, response.access_token, rememberMe)
 
       if (rememberMe) {
         localStorage.setItem('remember-email', email)

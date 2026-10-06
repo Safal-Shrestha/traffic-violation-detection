@@ -70,6 +70,7 @@ SIGNAL_CONTROL_TOKEN = os.getenv("SIGNAL_CONTROL_TOKEN", "")
 ADVERTISE_HOST = os.getenv("ADVERTISE_HOST", "")              # LAN IP MediaMTX uses to reach this worker
 ADVERTISE_PORT = int(os.getenv("ADVERTISE_PORT", str(CONTROL_PORT)))
 FORCE_PUBLISH = os.getenv("FORCE_PUBLISH", "0") == "1"        # debugging: publish without viewers
+CONFIG_POLL_SECONDS = float(os.getenv("CONFIG_POLL_SECONDS", "5"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -115,6 +116,8 @@ class DetectionState:
 
 
 detection_state = DetectionState()
+camera_config = {"config_version": 0, "stop_line": None, "red_grace_seconds": 0.0}
+camera_config_lock = threading.Lock()
 plate_cache = {}
 plate_lock = threading.Lock()
 ocr_lock = threading.Lock()
@@ -403,6 +406,25 @@ def heartbeat_loop():
         stop_event.wait(10)
 
 
+def config_loop():
+    """Fetch the persisted calibration so every worker uses the backend's latest version."""
+    while not stop_event.is_set():
+        try:
+            req = urllib.request.Request(
+                f"{BACKEND_URL}/api/v1/cameras/{CAMERA_ID}/config",
+                headers={"X-Worker-Key": WORKER_API_KEY},
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                config = json.loads(response.read())
+            with camera_config_lock:
+                camera_config.update(config)
+            log.info("loaded camera config version %s (calibrated=%s)",
+                     config.get("config_version"), config.get("stop_line") is not None)
+        except Exception as exc:
+            log.warning("camera config fetch failed: %s", exc)
+        stop_event.wait(CONFIG_POLL_SECONDS)
+
+
 # ---------------------------------------------------------------- input
 class FrameGrabber(threading.Thread):
     """Reads the RTSP stream and keeps only the newest frame (drops stale ones)."""
@@ -652,10 +674,18 @@ def handle_frame(tracks, frame, ts, frame_seq, plate_model, ocr_reader):
             )
         track["plate_recognition"] = plate_cache[track["id"]]
 
+    with camera_config_lock:
+        active_config = dict(camera_config)
     detection_state.replace({
         "camera_id": CAMERA_ID,
         "timestamp_unix": round(ts, 3),
         "frame_sequence": frame_seq,
+        "config_version": active_config.get("config_version"),
+        "calibrated": active_config.get("stop_line") is not None,
+        "stop_line": active_config.get("stop_line"),
+        "frame_width": active_config.get("frame_width"),
+        "frame_height": active_config.get("frame_height"),
+        "red_grace_seconds": active_config.get("red_grace_seconds", 0.0),
         "tracks": tracks,
     })
 
@@ -696,6 +726,7 @@ def main():
     threading.Thread(target=signal_server.serve_forever, daemon=True).start()
     log.info("signal server on :%d", SIGNAL_API_PORT)
     threading.Thread(target=heartbeat_loop, daemon=True).start()
+    threading.Thread(target=config_loop, daemon=True).start()
 
     registrar = None
     if REGISTER_PATH:

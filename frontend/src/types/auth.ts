@@ -27,7 +27,7 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  success: boolean
-  message: string
-  user?: User
+  access_token: string
+  expires_at: string
+  officer: { id: number; name: string; email: string; role: string; badge_number: string }
 }
