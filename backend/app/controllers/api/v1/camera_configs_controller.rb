@@ -2,7 +2,7 @@ module Api
   module V1
     class CameraConfigsController < BaseController
       def show
-        authenticate_worker!
+        authenticate_worker_or_admin!
         camera = Camera.find(params[:camera_id])
         render json: config_payload(camera)
       end
@@ -34,6 +34,17 @@ module Api
         return if expected.present? && ActiveSupport::SecurityUtils.secure_compare(provided, expected)
 
         raise ApiErrors::ApiError.new("UNAUTHENTICATED", "Invalid worker key.", :unauthorized)
+      end
+
+      # Workers read their config with the worker key. The calibration UI reads
+      # the same payload as an authenticated administrator.
+      def authenticate_worker_or_admin!
+        expected = ENV["WORKER_API_KEY"].to_s
+        provided = request.headers["X-Worker-Key"].to_s
+        return if expected.present? && ActiveSupport::SecurityUtils.secure_compare(provided, expected)
+
+        authenticate_user!
+        require_admin!
       end
 
       def config_payload(camera)

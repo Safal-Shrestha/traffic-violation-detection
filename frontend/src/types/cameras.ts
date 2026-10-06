@@ -48,6 +48,7 @@ export interface CameraCalibration {
   frame_height: number | null
   red_grace_seconds: number
   config_version: number
+  stop_line?: StopLine | null
 }
 
 export interface CameraWorker {
@@ -84,14 +85,10 @@ export interface CameraConfig {
   camera_id: string
   config_version: number
   status: CameraStatus
-  raw_stream_key?: string
-  output_stream_key: string
-  signal_state_key: string
   frame_width: number
   frame_height: number
   stop_line: StopLine | null
   red_grace_seconds: number
-  signal: CameraSignal
 }
 
 export interface UpdateCameraConfigRequest {
@@ -100,7 +97,6 @@ export interface UpdateCameraConfigRequest {
   stop_line: StopLine
   red_grace_seconds: number
   expected_config_version: number
-  confirmed: true
 }
 
 export interface ReferenceFrameUploadResponse {
