@@ -5,11 +5,14 @@ class Camera < ApplicationRecord
   APPROACH_SIDES    = %w[above below].freeze
   STATUSES           = %w[ACTIVE INACTIVE MAINTENANCE].freeze
   WORKER_STATUSES    = %w[STOPPED STARTING RUNNING ERROR].freeze
+  PROVISIONING_STATUSES = %w[REQUESTED STARTING READY ERROR].freeze
   STOP_LINE_POINTS   = %w[p1 p2].freeze
 
   enum :status,        STATUSES.to_h { |value| [ value.downcase.to_sym, value ] }, validate: true
   enum :worker_status, WORKER_STATUSES.to_h { |value| [ value.downcase.to_sym, value ] },
        prefix: :worker, validate: true
+  enum :provisioning_status, PROVISIONING_STATUSES.to_h { |value| [ value.downcase.to_sym, value ] },
+       validate: true
   has_many :violations, inverse_of: :camera, dependent: :restrict_with_error
 
   before_validation :normalize_blank_keys
@@ -18,6 +21,10 @@ class Camera < ApplicationRecord
   validates :raw_stream_key, presence: true, length: { maximum: 255 }, uniqueness: true
   validates :output_stream_key, length: { maximum: 255 }, uniqueness: true, allow_nil: true
   validates :signal_state_key, length: { maximum: 255 }, uniqueness: true, allow_nil: true
+  validates :source_video, length: { maximum: 255 },
+            inclusion: { in: %w[junction1.mp4 junction2.mp4 junction3.mp4 junction4.mp4] },
+            allow_nil: true
+  validates :control_api_base_url, :signal_api_base_url, length: { maximum: 500 }, allow_nil: true
   validates :frame_width, :frame_height, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :red_grace_seconds, numericality: { greater_than_or_equal_to: 0 }
   validate  :stop_line_must_be_valid

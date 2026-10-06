@@ -26,7 +26,7 @@ import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 from dotenv import load_dotenv
 
 import cv2
@@ -55,12 +55,18 @@ MEDIAMTX_API = os.getenv("MEDIAMTX_API", f"http://{_mtx_host}:9997").rstrip("/")
 MEDIAMTX_API_USER = os.getenv("MEDIAMTX_API_USER", "")
 MEDIAMTX_API_PASS = os.getenv("MEDIAMTX_API_PASS", "")
 OUTPUT_PATH_NAME = urlparse(OUTPUT_URL).path.lstrip("/")
+SIGNAL_STATE_KEY = f"camera_signal_{CAMERA_ID}"
 
 GRACE_SECONDS = float(os.getenv("GRACE_SECONDS", "10"))       # keep publishing after the last viewer
 POLL_SECONDS = float(os.getenv("POLL_SECONDS", "2"))          # reader poll interval
 REGISTER_INTERVAL = float(os.getenv("REGISTER_INTERVAL", "30"))
 REGISTER_PATH = os.getenv("REGISTER_PATH", "1") == "1"        # 0 = path is managed in mediamtx.yml
 CONTROL_PORT = int(os.getenv("CONTROL_PORT", "8081"))         # control server, unique per worker per host
+SIGNAL_API_PORT = int(os.getenv("SIGNAL_API_PORT", "5001"))
+SIGNAL_API_BASE_URL = os.getenv("SIGNAL_API_BASE_URL", "")
+BACKEND_URL = os.getenv("BACKEND_URL", "").rstrip("/")
+WORKER_API_KEY = os.getenv("WORKER_API_KEY", "")
+SIGNAL_CONTROL_TOKEN = os.getenv("SIGNAL_CONTROL_TOKEN", "")
 ADVERTISE_HOST = os.getenv("ADVERTISE_HOST", "")              # LAN IP MediaMTX uses to reach this worker
 ADVERTISE_PORT = int(os.getenv("ADVERTISE_PORT", str(CONTROL_PORT)))
 FORCE_PUBLISH = os.getenv("FORCE_PUBLISH", "0") == "1"        # debugging: publish without viewers
@@ -71,6 +77,25 @@ logging.basicConfig(
 )
 log = logging.getLogger("worker")
 stop_event = threading.Event()
+
+
+class SignalState:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._state = "RED"
+        self._updated_at = time.time()
+
+    def read(self):
+        with self._lock:
+            return self._state, self._updated_at
+
+    def write(self, state):
+        with self._lock:
+            self._state = state
+            self._updated_at = time.time()
+
+
+signal_state = SignalState()
 
 
 class DetectionState:
@@ -291,6 +316,91 @@ class ControlHandler(BaseHTTPRequestHandler):
 
     def log_message(self, *args):
         return
+
+
+class SignalHandler(BaseHTTPRequestHandler):
+    def _response(self, status, payload):
+        body = json.dumps(payload).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", os.getenv("SIGNAL_CORS_ORIGIN", "*"))
+        self.send_header("Access-Control-Allow-Methods", "GET, PUT, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self._response(204, {})
+
+    def do_GET(self):
+        if not self._matches_key():
+            self._response(404, {"error": "unknown signal key"})
+            return
+        state, updated_at = signal_state.read()
+        self._response(200, {
+            "signal_state_key": SIGNAL_STATE_KEY,
+            "camera_id": CAMERA_ID,
+            "state": state,
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(updated_at)),
+        })
+
+    def do_PUT(self):
+        if not self._matches_key():
+            self._response(404, {"error": "unknown signal key"})
+            return
+        expected = SIGNAL_CONTROL_TOKEN
+        provided = self.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        if not expected or provided != expected:
+            self._response(401, {"error": "unauthorized"})
+            return
+        try:
+            payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+            state = str(payload["state"]).upper()
+        except (ValueError, KeyError, json.JSONDecodeError):
+            self._response(422, {"error": "state must be RED, YELLOW, or GREEN"})
+            return
+        if state not in {"RED", "YELLOW", "GREEN"}:
+            self._response(422, {"error": "state must be RED, YELLOW, or GREEN"})
+            return
+        signal_state.write(state)
+        self.do_GET()
+
+    def _matches_key(self):
+        return self.path.rstrip("/").endswith(f"/signal/{unquote(SIGNAL_STATE_KEY)}")
+
+    def log_message(self, *args):
+        return
+
+
+def report_heartbeat():
+    if not BACKEND_URL or not WORKER_API_KEY:
+        log.warning("BACKEND_URL or WORKER_API_KEY missing; worker heartbeat disabled")
+        return
+    host = ADVERTISE_HOST or detect_advertise_host()
+    signal_base = SIGNAL_API_BASE_URL or f"http://{host}:{SIGNAL_API_PORT}"
+    control_base = f"http://{host}:{ADVERTISE_PORT}"
+    payload = json.dumps({
+        "status": "RUNNING",
+        "control_api_base_url": control_base,
+        "signal_api_base_url": signal_base,
+    }).encode()
+    request = urllib.request.Request(
+        f"{BACKEND_URL}/api/v1/cameras/{CAMERA_ID}/heartbeat",
+        data=payload,
+        headers={"Content-Type": "application/json", "X-Worker-Key": WORKER_API_KEY},
+        method="POST",
+    )
+    try:
+        urllib.request.urlopen(request, timeout=5).read()
+    except (urllib.error.URLError, TimeoutError) as exc:
+        log.warning("heartbeat failed: %s", exc)
+
+
+def heartbeat_loop():
+    while not stop_event.is_set():
+        report_heartbeat()
+        stop_event.wait(10)
 
 
 # ---------------------------------------------------------------- input
@@ -581,6 +691,12 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     log.info("control server on :%d (viewer hold + /health)", CONTROL_PORT)
 
+    signal_server = ThreadingHTTPServer(("0.0.0.0", SIGNAL_API_PORT), SignalHandler)
+    signal_server.daemon_threads = True
+    threading.Thread(target=signal_server.serve_forever, daemon=True).start()
+    log.info("signal server on :%d", SIGNAL_API_PORT)
+    threading.Thread(target=heartbeat_loop, daemon=True).start()
+
     registrar = None
     if REGISTER_PATH:
         host = ADVERTISE_HOST or detect_advertise_host()
@@ -646,6 +762,7 @@ def main():
     if registrar is not None:
         registrar.unregister()
     server.shutdown()
+    signal_server.shutdown()
 
 
 if __name__ == "__main__":

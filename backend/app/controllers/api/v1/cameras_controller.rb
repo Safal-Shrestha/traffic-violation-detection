@@ -3,6 +3,7 @@ module Api
     class CamerasController < BaseController
       CAMERA_STATUSES = %w[ACTIVE INACTIVE MAINTENANCE].freeze
       WORKER_STATUSES = %w[STOPPED STARTING RUNNING ERROR].freeze
+      DEMO_VIDEOS = %w[junction1.mp4 junction2.mp4 junction3.mp4 junction4.mp4].freeze
       CALIBRATION_STATUSES = %w[AWAITING_WORKER AWAITING_CALIBRATION CALIBRATED].freeze
       CONFIG_ONLY_FIELDS = %w[stop_line red_grace_seconds frame_width frame_height config_version].freeze
 
@@ -47,6 +48,8 @@ module Api
           output_stream_key: "#{id}-annotated",
           signal_state_key: "camera_signal_#{id}",
           worker_status: "STOPPED",
+          provisioning_status: "REQUESTED",
+          source_video: next_demo_video,
           config_version: 1,
           red_grace_seconds: 0
         )
@@ -75,6 +78,13 @@ module Api
 
       def camera_params
         params.permit(:name, :district, :municipality, :installed_at, :status)
+      end
+
+      def next_demo_video
+        used = Camera.where.not(source_video: nil).distinct.pluck(:source_video)
+        DEMO_VIDEOS.find { |video| !used.include?(video) } ||
+          raise(ApiErrors::ApiError.new("NO_SOURCE_VIDEO_AVAILABLE",
+                                        "All demo camera videos are currently assigned.", :conflict))
       end
 
       def load_camera

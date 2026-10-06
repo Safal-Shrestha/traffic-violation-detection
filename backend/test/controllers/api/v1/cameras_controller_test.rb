@@ -25,7 +25,10 @@ class Api::V1::CamerasControllerTest < ActionDispatch::IntegrationTest
     assert_equal "camera_signal_#{body['id']}", body["signal_state_key"]
     assert_equal "ACTIVE", body["status"]
     assert_equal "2026-10-04", body["installed_at"]
-    refute body.key?("signal")
+    assert_equal false, body.dig("signal", "available")
+    assert_nil body.dig("signal", "url")
+    assert_equal "REQUESTED", body.dig("provisioning", "status")
+    assert_equal "junction1.mp4", body.dig("provisioning", "source_video")
     assert_equal "AWAITING_WORKER", body.dig("calibration", "status")
     assert_equal false, body.dig("calibration", "calibrated")
     assert_equal 1, body.dig("calibration", "config_version")

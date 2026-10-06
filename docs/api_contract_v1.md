@@ -223,6 +223,16 @@ Registering a camera has these side effects, all inside one transaction:
   "installed_at": "2026-10-04",
   "output_stream_key": "6f0e8c1a-...-annotated",
   "signal_state_key": "camera_signal_6f0e8c1a-...",
+  "provisioning": {
+    "status": "REQUESTED",
+    "source_video": "junction1.mp4",
+    "error": null
+  },
+  "signal": {
+    "available": false,
+    "url": null,
+    "last_seen_at": null
+  },
   "playback": {
     "webrtc_url": "http://192.168.1.100:8889/6f0e8c1a-...-annotated",
     "hls_url": "http://192.168.1.100:8888/6f0e8c1a-...-annotated/index.m3u8"
@@ -262,6 +272,12 @@ Filters: `status`, `district`, `municipality`, `worker_status`, `calibration_sta
 #### `GET /cameras/{id}` (User)
 
 Returns one camera object.
+
+Camera creation assigns the next unused demo source video (`junction1.mp4`
+through `junction4.mp4`). When all four are assigned, creation returns
+`409 NO_SOURCE_VIDEO_AVAILABLE`. The response initially has provisioning status
+`REQUESTED`; the worker manager later claims the camera, starts FFmpeg and the
+worker, and the worker advertises its LAN signal endpoint through heartbeat.
 
 #### `PATCH /cameras/{id}` (Admin)
 
