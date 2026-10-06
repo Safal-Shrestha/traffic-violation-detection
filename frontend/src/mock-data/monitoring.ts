@@ -9,6 +9,7 @@ export const monitoringData: MonitoringData = {
       status: 'online',
       resolution: '1920 × 1080',
       fps: 30,
+      streamUrl: import.meta.env.VITE_MEDIAMTX_WEBRTC_URL,
     },
     {
       id: 2,

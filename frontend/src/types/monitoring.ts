@@ -23,6 +23,7 @@ export interface MonitoringCamera {
   status: 'online' | 'offline'
   resolution: string
   fps: number
+  streamUrl?: string
 }
 
 export interface MonitoringData {

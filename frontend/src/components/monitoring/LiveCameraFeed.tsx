@@ -41,13 +41,21 @@ function LiveCameraFeed({
       >
         {isOnline ? (
           <>
-            <div className="monitoring-feed-placeholder">
-              <Video size={42} />
-              <span>Live Camera Feed</span>
-              <small>
-                Video stream will be connected here
-              </small>
-            </div>
+            {camera.streamUrl ? (
+              <iframe
+                className="monitoring-feed-stream"
+                src={camera.streamUrl}
+                title={`${camera.name} live stream`}
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowFullScreen
+              />
+            ) : (
+              <div className="monitoring-feed-placeholder">
+                <Video size={42} />
+                <span>Live Camera Feed</span>
+                <small>Video stream is not configured</small>
+              </div>
+            )}
 
             <div className="monitoring-live-indicator">
               <Circle size={8} fill="currentColor" />

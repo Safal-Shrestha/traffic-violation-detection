@@ -64,19 +64,8 @@ def port_available(port):
             detail = probe.stderr.strip() or probe.stdout.strip() or "SSH connection failed"
             raise RuntimeError(f"SSH port probe failed: {detail}")
         return probe.returncode == 0
-    if WORKER_DOCKER_NETWORK == "bridge" and os.name == "posix" and os.getenv("WSL_INTEROP"):
-        powershell = shutil.which("powershell.exe")
-        if powershell:
-            script = (
-                f"$listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Any, {port}); "
-                "try { $listener.Start(); exit 0 } catch { exit 1 } "
-                "finally { if ($listener) { $listener.Stop() } }"
-            )
-            result = subprocess.run([powershell, "-NoProfile", "-NonInteractive", "-Command", script],
-                                    check=False, capture_output=True, timeout=5)
-            return result.returncode == 0
     with socket.socket() as sock:
-        return sock.connect_ex(("0.0.0.0", port)) != 0
+        return sock.connect_ex(("127.0.0.1", port)) != 0
 
 
 def allocate_port(start, used):
@@ -93,7 +82,7 @@ def ssh(target, command, *, check=True, timeout=None):
     remote_command = shlex.join(["bash", "-lc", shlex.join(command)])
     try:
         result = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "LogLevel=ERROR",
+            ["ssh", "-F", "/dev/null", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "LogLevel=ERROR",
              target, remote_command],
             check=False, text=True, capture_output=True, timeout=timeout
         )
@@ -117,7 +106,7 @@ def ssh_powershell(target, script, *, check=True, timeout=None):
     remote_command = f"powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}"
     try:
         result = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "LogLevel=ERROR",
+            ["ssh", "-F", "/dev/null", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "LogLevel=ERROR",
              target, remote_command],
             check=False, text=True, capture_output=True, timeout=timeout
         )
@@ -183,7 +172,7 @@ def start_camera(camera, control_port, signal_port):
     video_dir = VIDEO_DIR_ON_B if remote_video else VIDEO_DIR
     source = os.path.join(video_dir, camera["source_video"])
     if remote_video:
-        if VIDEO_SSH_MODE == "linux":
+        if VIDEO_SSH_MODE in {"linux", "linux-docker"}:
             check = ssh(VIDEO_SSH_TARGET, ["test", "-f", source], check=False, timeout=15)
         elif VIDEO_SSH_MODE == "powershell":
             check_script = (
@@ -192,7 +181,7 @@ def start_camera(camera, control_port, signal_port):
             )
             check = ssh_powershell(VIDEO_SSH_TARGET, check_script, check=False, timeout=15)
         else:
-            raise RuntimeError("VIDEO_SSH_MODE must be 'linux' or 'powershell'")
+            raise RuntimeError("VIDEO_SSH_MODE must be 'linux', 'linux-docker', or 'powershell'")
         if check.returncode:
             raise RuntimeError(f"source video does not exist on laptop B: {source}")
     elif not os.path.isfile(source):
@@ -221,6 +210,17 @@ def start_camera(camera, control_port, signal_port):
             "$process.Id | Set-Content -LiteralPath $pidFile -NoNewline"
         )
         ssh_powershell(VIDEO_SSH_TARGET, script, timeout=30)
+    elif remote_video and VIDEO_SSH_MODE == "linux-docker":
+        # Run FFmpeg in a container on the Linux video host. Host networking
+        # lets it publish to that machine's MediaMTX at 127.0.0.1:8554.
+        ssh(VIDEO_SSH_TARGET, ["docker", "rm", "-f", ffmpeg_name], check=False, timeout=30)
+        ssh(VIDEO_SSH_TARGET, ["docker", "run", "-d", "--name", ffmpeg_name,
+             "--network", "host", "-v", f"{video_dir}:/videos:ro",
+             "linuxserver/ffmpeg:9.0-cli-ls84", "-re", "-stream_loop", "-1",
+             "-i", f"/videos/{camera['source_video']}", "-c:v", "libx264",
+             "-preset", "veryfast", "-tune", "zerolatency", "-g", "30",
+             "-bf", "0", "-an", "-f", "rtsp", "-rtsp_transport", "tcp",
+             f"{VIDEO_PUBLISH_URL}/{raw_path}"], timeout=120)
     elif remote_video:
         pid_file = f"/tmp/{ffmpeg_name}.pid"
         log_file = f"/tmp/{ffmpeg_name}.log"
@@ -335,6 +335,10 @@ def reconcile():
 
 def stop_video_publisher(camera_id):
     pid_file = f"traffic-ffmpeg-{camera_id}.pid"
+    if VIDEO_SSH_MODE == "linux-docker":
+        ssh(VIDEO_SSH_TARGET, ["docker", "rm", "-f", f"traffic-ffmpeg-{camera_id}"],
+            check=False, timeout=30)
+        return
     if VIDEO_SSH_MODE == "linux":
         remote_pid_file = f"/tmp/{pid_file}"
         script = (
@@ -355,8 +359,8 @@ def stop_video_publisher(camera_id):
 
 
 def main():
-    if VIDEO_SSH_TARGET and VIDEO_SSH_MODE not in {"linux", "powershell"}:
-        raise RuntimeError("VIDEO_SSH_MODE must be 'linux' or 'powershell'")
+    if VIDEO_SSH_TARGET and VIDEO_SSH_MODE not in {"linux", "linux-docker", "powershell"}:
+        raise RuntimeError("VIDEO_SSH_MODE must be 'linux', 'linux-docker', or 'powershell'")
     print(f"worker manager polling {BACKEND_URL} every {POLL_SECONDS:g}s", flush=True)
     while True:
         try:
