@@ -17,8 +17,9 @@ class Api::V1::CameraSignalsControllerTest < ActionDispatch::IntegrationTest
     worker_response = signal_response("GREEN")
     fake_http = fake_http_response(worker_response)
     start_http = ->(_host, _port, **_options, &block) { block.call(fake_http) }
+
     with_signal_token do
-      Net::HTTP.stub(:start, start_http) do
+      stub_net_http_start(start_http) do
         get "/api/v1/cameras/#{@camera.id}/signal", headers: auth_headers(@admin)
       end
     end
@@ -33,8 +34,9 @@ class Api::V1::CameraSignalsControllerTest < ActionDispatch::IntegrationTest
     worker_response = signal_response("RED")
     fake_http = fake_http_response(worker_response)
     start_http = ->(_host, _port, **_options, &block) { block.call(fake_http) }
+
     with_signal_token do
-      Net::HTTP.stub(:start, start_http) do
+      stub_net_http_start(start_http) do
         put "/api/v1/cameras/#{@camera.id}/signal", params: { state: "red" },
             headers: auth_headers(@admin), as: :json
       end
@@ -74,8 +76,22 @@ class Api::V1::CameraSignalsControllerTest < ActionDispatch::IntegrationTest
     http
   end
 
-  def with_signal_token(&block)
-    original = ENV.method(:[])
-    ENV.stub(:[], ->(key) { key == "SIGNAL_CONTROL_TOKEN" ? "test-control-token" : original.call(key) }, &block)
+  # Replaces ENV["SIGNAL_CONTROL_TOKEN"] safely during the block
+  def with_signal_token
+    original = ENV["SIGNAL_CONTROL_TOKEN"]
+    ENV["SIGNAL_CONTROL_TOKEN"] = "test-control-token"
+    yield
+  ensure
+    ENV["SIGNAL_CONTROL_TOKEN"] = original
+  end
+
+  # Replaces Net::HTTP.start safely during the block
+  def stub_net_http_start(implementation)
+    singleton = Net::HTTP.singleton_class
+    original_start = Net::HTTP.method(:start)
+    singleton.send(:define_method, :start, &implementation)
+    yield
+  ensure
+    singleton.send(:define_method, :start, original_start)
   end
 end
