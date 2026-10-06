@@ -6,6 +6,7 @@ import {
 
 import { AuthContext } from './AuthContext'
 import type { User } from '../types/auth'
+import { getCurrentUser } from '../services/authService'
 
 interface AuthProviderProps {
   children: ReactNode
