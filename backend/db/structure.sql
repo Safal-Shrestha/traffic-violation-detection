@@ -81,6 +81,7 @@ CREATE TABLE public.cameras (
     control_api_base_url character varying(500),
     signal_api_base_url character varying(500),
     signal_api_last_seen_at timestamp with time zone,
+    updated_at timestamp(6) with time zone,
     CONSTRAINT cameras_frame_height_check CHECK ((frame_height > 0)),
     CONSTRAINT cameras_frame_width_check CHECK ((frame_width > 0)),
     CONSTRAINT cameras_provisioning_status_check CHECK (((provisioning_status)::text = ANY ((ARRAY['REQUESTED'::character varying, 'STARTING'::character varying, 'READY'::character varying, 'ERROR'::character varying])::text[]))),
@@ -400,6 +401,13 @@ CREATE UNIQUE INDEX index_cameras_on_raw_stream_key ON public.cameras USING btre
 
 
 --
+-- Name: index_cameras_on_unique_source_video; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_cameras_on_unique_source_video ON public.cameras USING btree (source_video) WHERE (source_video IS NOT NULL);
+
+
+--
 -- Name: index_evidence_on_violation_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -575,6 +583,8 @@ ALTER TABLE ONLY public.vehicles
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261006124116'),
+('20261006120000'),
 ('20261005192000'),
 ('20261005180500'),
 ('20261005140000'),

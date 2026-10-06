@@ -46,6 +46,12 @@ class Camera < ApplicationRecord
     update!(attrs)
   end
 
+  PROVISIONING_STATUSES.each do |status|
+    define_method(:"provisioning_#{status.downcase}?") do
+      provisioning_status == status.downcase
+    end
+  end
+
   private
 
   # Unique indexes treat '' as a value, so blank keys are stored as NULL.
