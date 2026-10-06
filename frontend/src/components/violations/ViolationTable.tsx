@@ -1,10 +1,10 @@
 import { Eye } from 'lucide-react'
-import type { Violation } from '../../types/violations'
+import type { ViolationListItem } from '../../types/violations'
 import ViolationStatusBadge from './ViolationStatusBadge'
 
 interface ViolationTableProps {
-  violations: Violation[]
-  onView: (id: number) => void
+  violations: ViolationListItem[]
+  onView: (id: string) => void
 }
 
 function ViolationTable({
@@ -29,53 +29,79 @@ function ViolationTable({
 
         <tbody>
           {violations.length > 0 ? (
-            violations.map((violation) => (
-              <tr key={violation.id}>
-                <td className="violation-id">
-                  #{String(violation.id).padStart(3, '0')}
-                </td>
+            violations.map((violation) => {
+              const occurredAt = new Date(violation.occurred_at)
 
-                <td>
-                  <strong>{violation.vehicleNumber}</strong>
-                </td>
+              const date = occurredAt.toLocaleDateString('en-CA', {
+                timeZone: 'Asia/Kathmandu',
+              })
 
-                <td>
-                  <span className="violation-type">
-                    {violation.violationLabel}
-                  </span>
-                  <small>{violation.location}</small>
-                </td>
+              const time = occurredAt.toLocaleTimeString('en-US', {
+                timeZone: 'Asia/Kathmandu',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })
 
-                <td>{violation.camera}</td>
+              const confidence =
+                violation.plate_confidence !== null
+                  ? `${Math.round(violation.plate_confidence * 100)}%`
+                  : '—'
 
-                <td>
-                  <span className="violation-datetime">
-                    {violation.date}
-                  </span>
-                  <small>{violation.time}</small>
-                </td>
+              return (
+                <tr key={violation.id}>
+                  <td className="violation-id">
+                    #{violation.id.slice(0, 8)}
+                  </td>
 
-                <td>
-                  <span className="violation-confidence">
-                    {violation.confidence}%
-                  </span>
-                </td>
+                  <td>
+                    <strong>
+                      {violation.vehicle?.plate_number ??
+                        violation.detected_plate_raw ??
+                        'Unknown'}
+                    </strong>
+                  </td>
 
-                <td>
-                  <ViolationStatusBadge status={violation.status} />
-                </td>
+                  <td>
+                    <span className="violation-type">
+                      {violation.violation_type.name}
+                    </span>
+                  </td>
 
-                <td>
-                  <button
-                    className="violation-view-button"
-                    onClick={() => onView(violation.id)}
-                    aria-label={`View violation ${violation.id}`}
-                  >
-                    <Eye size={17} />
-                  </button>
-                </td>
-              </tr>
-            ))
+                  <td>{violation.camera.name}</td>
+
+                  <td>
+                    <span className="violation-datetime">
+                      {date}
+                    </span>
+                    <small>{time}</small>
+                  </td>
+
+                  <td>
+                    <span className="violation-confidence">
+                      {confidence}
+                    </span>
+                  </td>
+
+                  <td>
+                    <ViolationStatusBadge
+                      status={violation.status}
+                    />
+                  </td>
+
+                  <td>
+                    <button
+                      type="button"
+                      className="violation-view-button"
+                      onClick={() => onView(violation.id)}
+                      aria-label={`View violation ${violation.id}`}
+                    >
+                      <Eye size={17} />
+                    </button>
+                  </td>
+                </tr>
+              )
+            })
           ) : (
             <tr>
               <td colSpan={8}>

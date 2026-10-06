@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
-import { Link, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { useAuth } from '../context/useAuth'
 import { login } from '../services/authService'
 import '../css/login.css'
@@ -8,23 +8,14 @@ import '../css/login.css'
 function Login() {
   const navigate = useNavigate()
   const { loginUser } = useAuth()
-
   const [password, setPassword] = useState('')
-  const [rememberMe, setRememberMe] = useState(false)
-
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [email, setEmail] = useState('')
 
-  const [email, setEmail] = useState(
-    () => localStorage.getItem('remember-email') ?? '',
-  )
-
-  const handleSubmit = async (
-    event: React.SubmitEvent<HTMLFormElement>,
-  ) => {
+  const handleSubmit = async ( event: React.SubmitEvent<HTMLFormElement> ) => {
     event.preventDefault()
 
     setError('')
@@ -43,19 +34,7 @@ function Login() {
         password,
       })
 
-      if (!response.success || !response.user) {
-        setError(response.message)
-        return
-      }
-
-      loginUser(response.user, rememberMe)
-
-      if (rememberMe) {
-        localStorage.setItem('remember-email', email)
-      } else {
-        localStorage.removeItem('remember-email')
-      }
-
+      loginUser(response.access_token,response.expires_at,response.officer)
       navigate('/dashboard')
     } catch {
       setError('Unable to connect to the server. Please try again.')
@@ -139,18 +118,6 @@ function Login() {
           </div>
 
           <div className="auth-options">
-            <label className="auth-checkbox">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(event) =>
-                  setRememberMe(event.target.checked)
-                }
-              />
-
-              <span>Remember me</span>
-            </label>
-
             <button
               type="button"
               className="auth-link-button"
@@ -172,11 +139,6 @@ function Login() {
             {isLoading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-
-        <div className="auth-footer">
-          <span>Don't have an account?</span>
-          <Link to="/signup">Create an account</Link>
-        </div>
       </div>
     </div>
   )

@@ -25,13 +25,12 @@ import { useAuth } from '../context/useAuth'
 
 function Cameras() {
   const { user } = useAuth()
-  const isAdministrator = user?.role === 'administrator'
+  const isAdministrator = user?.role === 'ADMIN'
 
   const [data, setData] = useState<CamerasData | null>(null)
 
   const [search, setSearch] = useState('')
-  const [status, setStatus] =
-    useState<CameraStatus | 'all'>('all')
+  const [status, setStatus] = useState<CameraStatus | 'all'>('all')
 
   const [editingCamera, setEditingCamera] =
     useState<CameraType | null>(null)
@@ -51,8 +50,8 @@ function Cameras() {
 
       const matchesSearch =
         camera.name.toLowerCase().includes(searchValue) ||
-        camera.location.toLowerCase().includes(searchValue) ||
-        camera.ipAddress.toLowerCase().includes(searchValue)
+        camera.district.toLowerCase().includes(searchValue) ||
+        camera.municipality.toLowerCase().includes(searchValue)
 
       const matchesStatus =
         status === 'all' || camera.status === status
@@ -72,20 +71,24 @@ function Cameras() {
   const totalCameras = data.cameras.length
 
   const onlineCameras = data.cameras.filter(
-    (camera) => camera.status === 'online',
+    (camera) => camera.worker.online,
   ).length
 
   const offlineCameras = data.cameras.filter(
-    (camera) => camera.status === 'offline',
+    (camera) => !camera.worker.online,
   ).length
 
+  const camerasWithFps = data.cameras.filter(
+    (camera) => camera.worker.fps !== null,
+  )
+
   const averageFps =
-    totalCameras > 0
+    camerasWithFps.length > 0
       ? Math.round(
-          data.cameras.reduce(
-            (total, camera) => total + camera.fps,
+          camerasWithFps.reduce(
+            (total, camera) => total + (camera.worker.fps ?? 0),
             0,
-          ) / totalCameras,
+          ) / camerasWithFps.length,
         )
       : 0
 
@@ -133,12 +136,6 @@ function Cameras() {
 
   return (
     <div className="cameras-page">
-      {/* <div className="cameras-heading">
-        <div>
-          <h1>Cameras</h1>
-        </div>
-      </div> */}
-
       <div className="cameras-stats">
         <CameraStatCard
           title="Total Cameras"
@@ -164,7 +161,7 @@ function Cameras() {
         <CameraStatCard
           title="Average FPS"
           value={String(averageFps)}
-          description="Across all cameras"
+          description="Across connected cameras"
           icon={<Activity size={20} />}
         />
       </div>
@@ -186,7 +183,7 @@ function Cameras() {
             >
               <Plus size={17} />
               Add Camera
-            </button> 
+            </button>
           )}
         </div>
 

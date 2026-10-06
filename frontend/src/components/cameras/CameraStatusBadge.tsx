@@ -5,10 +5,11 @@ interface CameraStatusBadgeProps {
 }
 
 function CameraStatusBadge({ status }: CameraStatusBadgeProps) {
+  const label = status === 'ACTIVE' ? 'Active' : 'Inactive'
   return (
-    <span className={`cameras-status-badge ${status}`}>
+    <span className={`cameras-status-badge ${status.toLowerCase()}`}>
       <span className="cameras-status-dot" />
-      {status === 'online' ? 'Online' : 'Offline'}
+      {label}
     </span>
   )
 }

@@ -1,40 +1,32 @@
-import type {
-  LoginRequest,
-  LoginResponse,
-  SignupRequest,
-  SignupResponse,
-} from '../types/auth'
-
-const API_BASE_URL = 'http://127.0.0.1:5000/api'
-
-export async function signup(
-  data: SignupRequest,
-): Promise<SignupResponse> {
-  const response = await fetch(`${API_BASE_URL}/auth/signup`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  })
-
-  const result: SignupResponse = await response.json()
-
-  return result
-}
+import type {ChangePasswordRequest,LoginRequest,LoginResponse,MeResponse} from '../types/auth'
+import { apiClient } from './apiClient'
 
 export async function login(
   data: LoginRequest,
 ): Promise<LoginResponse> {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  return apiClient<LoginResponse>('/auth/login', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(data),
   })
+}
 
-  const result: LoginResponse = await response.json()
+export async function getCurrentUser(): Promise<MeResponse> {
+  const token = sessionStorage.getItem('access_token')
 
-  return result
+  return apiClient<MeResponse>('/auth/me', {
+    method: 'GET',
+    token: token ?? undefined,
+  })
+}
+
+export async function changePassword(
+  data: ChangePasswordRequest,
+): Promise<void> {
+  const token = sessionStorage.getItem('access_token')
+
+  await apiClient<void>('/auth/change-password', {
+    method: 'POST',
+    token: token ?? undefined,
+    body: JSON.stringify(data),
+  })
 }

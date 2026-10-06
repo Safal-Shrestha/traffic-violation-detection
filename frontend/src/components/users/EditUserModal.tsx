@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import type { User, UserRole, UserStatus } from '../../types/users'
+import type { User, UserRole } from '../../types/users'
 
 interface EditUserModalProps {
   user: User
@@ -14,9 +14,9 @@ function EditUserModal({
   onSave,
 }: EditUserModalProps) {
   const [name, setName] = useState(user.name)
+  const [badgeNumber, setBadgeNumber] = useState(user.badge_number)
   const [email, setEmail] = useState(user.email)
   const [role, setRole] = useState<UserRole>(user.role)
-  const [status, setStatus] = useState<UserStatus>(user.status)
 
   return (
     <div
@@ -50,9 +50,9 @@ function EditUserModal({
             onSave({
               ...user,
               name,
+              badge_number: badgeNumber,
               email,
               role,
-              status,
             })
           }}
         >
@@ -72,6 +72,22 @@ function EditUserModal({
             </div>
 
             <div className="users-form-group">
+              <label htmlFor="user-badge-number">
+                Badge Number
+              </label>
+
+              <input
+                id="user-badge-number"
+                type="text"
+                value={badgeNumber}
+                onChange={(event) =>
+                  setBadgeNumber(event.target.value)
+                }
+                required
+              />
+            </div>
+
+            <div className="users-form-group">
               <label htmlFor="user-email">
                 Email
               </label>
@@ -85,50 +101,26 @@ function EditUserModal({
               />
             </div>
 
-            <div className="users-form-row">
-              <div className="users-form-group">
-                <label htmlFor="user-role">
-                  Role
-                </label>
+            <div className="users-form-group">
+              <label htmlFor="user-role">
+                Role
+              </label>
 
-                <select
-                  id="user-role"
-                  value={role}
-                  onChange={(event) =>
-                    setRole(event.target.value as UserRole)
-                  }
-                >
-                  <option value="administrator">
-                    Administrator
-                  </option>
+              <select
+                id="user-role"
+                value={role}
+                onChange={(event) =>
+                  setRole(event.target.value as UserRole)
+                }
+              >
+                <option value="ADMIN">
+                  Administrator
+                </option>
 
-                  <option value="officer">
-                    Officer
-                  </option>
-                </select>
-              </div>
-
-              <div className="users-form-group">
-                <label htmlFor="user-status">
-                  Status
-                </label>
-
-                <select
-                  id="user-status"
-                  value={status}
-                  onChange={(event) =>
-                    setStatus(event.target.value as UserStatus)
-                  }
-                >
-                  <option value="active">
-                    Active
-                  </option>
-
-                  <option value="inactive">
-                    Inactive
-                  </option>
-                </select>
-              </div>
+                <option value="OFFICER">
+                  Officer
+                </option>
+              </select>
             </div>
           </div>
 

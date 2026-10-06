@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Bell, User } from 'lucide-react'
+
 import { useAuth } from '../context/useAuth'
+import { changePassword } from '../services/authService'
 
 import '../css/settings.css'
 
@@ -14,10 +16,9 @@ interface NotificationSetting {
 
 function Settings() {
   const { user } = useAuth()
+
   const [activeTab, setActiveTab] =
     useState<SettingsTab>('account')
-
-  const [profileMessage, setProfileMessage] = useState('')
 
   const [notifications, setNotifications] = useState<
     NotificationSetting[]
@@ -44,42 +45,39 @@ function Settings() {
     },
   ])
 
-  const handleProfileSubmit = (
-    event: React.SubmitEvent<HTMLFormElement>,
+  const [passwordMessage, setPasswordMessage] = useState('')
+  const [passwordMessageType, setPasswordMessageType] =
+    useState<'success' | 'error' | ''>('')
+  const [isChangingPassword, setIsChangingPassword] =
+    useState(false)
+
+  const handlePasswordSubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
 
-    const formData = new FormData(event.currentTarget)
-
-    const name = String(formData.get('name') ?? '').trim()
-    const email = String(formData.get('email') ?? '').trim()
-
-    if (!name || !email) {
-      setProfileMessage('Name and email are required.')
-      return
-    }
-
-    setProfileMessage('Profile changes will be available when account updates are connected.',)
-  }
-
-  const handlePasswordSubmit = (
-    event: React.SubmitEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault()
+    setPasswordMessage('')
+    setPasswordMessageType('')
 
     const formData = new FormData(event.currentTarget)
 
     const currentPassword = String(
       formData.get('currentPassword') ?? '',
     )
+
     const newPassword = String(
       formData.get('newPassword') ?? '',
     )
+
     const confirmPassword = String(
       formData.get('confirmPassword') ?? '',
     )
 
-    if (!currentPassword || !newPassword || !confirmPassword) {
+    if (
+      !currentPassword ||
+      !newPassword ||
+      !confirmPassword
+    ) {
       setPasswordMessage('Please fill in all password fields.')
       setPasswordMessageType('error')
       return
@@ -101,15 +99,31 @@ function Settings() {
       return
     }
 
-    setPasswordMessage('Password updated successfully.')
-    setPasswordMessageType('success')
+    try {
+      setIsChangingPassword(true)
 
-    event.currentTarget.reset()
+      await changePassword({
+        current_password: currentPassword,
+        new_password: newPassword,
+      })
+
+      setPasswordMessage(
+        'Password updated successfully.',
+      )
+      setPasswordMessageType('success')
+
+      event.currentTarget.reset()
+    } catch (error) {
+      console.error('Failed to change password:', error)
+
+      setPasswordMessage(
+        'Unable to update password. Please check your current password and try again.',
+      )
+      setPasswordMessageType('error')
+    } finally {
+      setIsChangingPassword(false)
+    }
   }
-
-  const [passwordMessage, setPasswordMessage] = useState('')
-  const [passwordMessageType, setPasswordMessageType] =
-    useState<'success' | 'error' | ''>('')
 
   const handleNotificationToggle = (id: string) => {
     setNotifications((currentNotifications) =>
@@ -159,24 +173,22 @@ function Settings() {
               </div>
 
               <div className="settings-section-content">
-                <form
-                  className="settings-form"
-                  onSubmit={handleProfileSubmit}
-                >
+                <div className="settings-form">
                   <div className="settings-subsection-heading">
                     <h3>Profile Information</h3>
                   </div>
 
                   <div className="settings-form-grid">
                     <div className="settings-field">
-                      <label htmlFor="profile-name">Name</label>
+                      <label htmlFor="profile-name">
+                        Name
+                      </label>
 
                       <input
                         id="profile-name"
-                        name="name"
                         type="text"
-                        defaultValue={user?.name ?? ''}
-                        placeholder="Enter your name"
+                        value={user?.name ?? ''}
+                        readOnly
                       />
                     </div>
 
@@ -187,21 +199,39 @@ function Settings() {
 
                       <input
                         id="profile-email"
-                        name="email"
                         type="email"
-                        defaultValue={user?.email ?? ''}
-                        placeholder="Enter your email"
+                        value={user?.email ?? ''}
+                        readOnly
                       />
                     </div>
 
                     <div className="settings-field">
-                      <label htmlFor="profile-role">Role</label>
+                      <label htmlFor="profile-badge">
+                        Badge Number
+                      </label>
+
+                      <input
+                        id="profile-badge"
+                        type="text"
+                        value={user?.badge_number ?? ''}
+                        readOnly
+                      />
+                    </div>
+
+                    <div className="settings-field">
+                      <label htmlFor="profile-role">
+                        Role
+                      </label>
 
                       <input
                         id="profile-role"
                         type="text"
-                        value={user?.role ?? ''}
-                        disabled
+                        value={
+                          user?.role === 'ADMIN'
+                            ? 'Administrator'
+                            : 'Officer'
+                        }
+                        readOnly
                       />
 
                       <span className="settings-field-hint">
@@ -209,22 +239,7 @@ function Settings() {
                       </span>
                     </div>
                   </div>
-
-                  {profileMessage && (
-                    <p className="settings-form-message success">
-                      {profileMessage}
-                    </p>
-                  )}
-
-                  <div className="settings-form-actions">
-                    <button
-                      type="submit"
-                      className="settings-primary-button"
-                    >
-                      Save Changes
-                    </button>
-                  </div>
-                </form>
+                </div>
 
                 <div className="settings-divider" />
 
@@ -247,6 +262,7 @@ function Settings() {
                         name="currentPassword"
                         type="password"
                         placeholder="Enter current password"
+                        disabled={isChangingPassword}
                       />
                     </div>
 
@@ -260,6 +276,7 @@ function Settings() {
                         name="newPassword"
                         type="password"
                         placeholder="Enter new password"
+                        disabled={isChangingPassword}
                       />
                     </div>
 
@@ -273,6 +290,7 @@ function Settings() {
                         name="confirmPassword"
                         type="password"
                         placeholder="Confirm new password"
+                        disabled={isChangingPassword}
                       />
                     </div>
                   </div>
@@ -289,8 +307,11 @@ function Settings() {
                     <button
                       type="submit"
                       className="settings-primary-button"
+                      disabled={isChangingPassword}
                     >
-                      Update Password
+                      {isChangingPassword
+                        ? 'Updating...'
+                        : 'Update Password'}
                     </button>
                   </div>
                 </form>

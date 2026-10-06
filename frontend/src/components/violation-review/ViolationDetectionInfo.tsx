@@ -1,19 +1,46 @@
 import {Camera,CalendarDays,Clock3,ShieldCheck} from 'lucide-react'
-import type { Violation } from '../../types/violations'
+import type { ViolationDetail } from '../../types/violations'
 
 interface ViolationDetectionInfoProps {
-  violation: Violation
+  violation: ViolationDetail
 }
 
 function ViolationDetectionInfo({
   violation,
 }: ViolationDetectionInfoProps) {
+  const occurredAt = new Date(violation.occurred_at)
+
+  const date = occurredAt.toLocaleDateString(
+    'en-GB',
+    {
+      timeZone: 'Asia/Kathmandu',
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+    },
+  )
+
+  const time = occurredAt.toLocaleTimeString(
+    'en-GB',
+    {
+      timeZone: 'Asia/Kathmandu',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    },
+  )
+
+  const confidence =
+    violation.detection_confidence !== null
+      ? `${(violation.detection_confidence * 100).toFixed(1)}%`
+      : 'Not available'
+
   return (
     <section className="review-panel">
       <div className="review-panel-header">
         <div>
           <h2>Detection Information</h2>
-          <p>Technical information about this detection</p>
         </div>
       </div>
 
@@ -23,7 +50,7 @@ function ViolationDetectionInfo({
 
           <div>
             <span>Camera</span>
-            <strong>{violation.camera}</strong>
+            <strong>{violation.camera.name}</strong>
           </div>
         </div>
 
@@ -32,7 +59,7 @@ function ViolationDetectionInfo({
 
           <div>
             <span>Date</span>
-            <strong>{violation.date}</strong>
+            <strong>{date}</strong>
           </div>
         </div>
 
@@ -41,7 +68,7 @@ function ViolationDetectionInfo({
 
           <div>
             <span>Time</span>
-            <strong>{violation.time}</strong>
+            <strong>{time}</strong>
           </div>
         </div>
 
@@ -50,7 +77,7 @@ function ViolationDetectionInfo({
 
           <div>
             <span>Confidence</span>
-            <strong>{violation.confidence}%</strong>
+            <strong>{confidence}</strong>
           </div>
         </div>
       </div>
