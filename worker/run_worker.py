@@ -15,8 +15,10 @@ import os
 os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
 
 import base64
+import argparse
 import json
 import logging
+import math
 import queue
 import signal
 import socket
@@ -25,12 +27,14 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, unquote
 from dotenv import load_dotenv
 
 import cv2
 import easyocr
+import numpy as np
 import torch
 from ultralytics import YOLO
 
@@ -92,8 +96,10 @@ class SignalState:
 
     def write(self, state):
         with self._lock:
-            self._state = state
-            self._updated_at = time.time()
+            state = str(state).upper()
+            if state != self._state:
+                self._state = state
+                self._updated_at = time.time()
 
 
 signal_state = SignalState()
@@ -121,6 +127,103 @@ camera_config_lock = threading.Lock()
 plate_cache = {}
 plate_lock = threading.Lock()
 ocr_lock = threading.Lock()
+
+
+class RedLightRule:
+    """Detect one directional stop-line crossing per tracked vehicle during RED."""
+
+    def __init__(self, margin_px=8):
+        self.margin_px = margin_px
+        self._tracks = {}
+
+    def reset(self):
+        self._tracks.clear()
+
+    @staticmethod
+    def _signed_distance(point, line, length):
+        ax, ay, bx, by = line
+        px, py = point
+        return ((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / length
+
+    @staticmethod
+    def _approach_sign(line, side):
+        ax, ay, bx, by = line
+        mx, my = (ax + bx) / 2, (ay + by) / 2
+        length = math.hypot(bx - ax, by - ay)
+        offsets = {
+            "above": (0, -length), "below": (0, length),
+            "left": (-length, 0), "right": (length, 0),
+        }
+        if side not in offsets:
+            raise ValueError(f"unknown stop-line approach_side: {side!r}")
+        ox, oy = offsets[side]
+        d = RedLightRule._signed_distance((mx + ox, my + oy), line, length)
+        if abs(d) < 1e-6:
+            raise ValueError(f"approach_side {side!r} does not identify a side of the stop line")
+        return 1 if d > 0 else -1
+
+    def evaluate(self, tracks, config, frame_shape, signal, frame_sequence, now=None):
+        """Return crossings; config geometry is scaled from calibration resolution."""
+        stop_line = config.get("stop_line")
+        if not stop_line:
+            return []
+        height, width = frame_shape[:2]
+        ref_width = float(config.get("frame_width") or width)
+        ref_height = float(config.get("frame_height") or height)
+        sx, sy = width / ref_width, height / ref_height
+        p1, p2 = stop_line["p1"], stop_line["p2"]
+        line = (float(p1["x"]) * sx, float(p1["y"]) * sy,
+                float(p2["x"]) * sx, float(p2["y"]) * sy)
+        length = math.hypot(line[2] - line[0], line[3] - line[1])
+        if length < 5:
+            return []
+        approach_sign = self._approach_sign(line, stop_line.get("approach_side", ""))
+        margin = self.margin_px * (sx + sy) / 2
+        now = time.time() if now is None else now
+        state, state_updated_at = signal
+        red_grace = max(0.0, float(config.get("red_grace_seconds", 0.0)))
+        red_active = state == "RED" and now - state_updated_at >= red_grace
+
+        events = []
+        seen = set()
+        for track in tracks:
+            track_id = int(track["id"])
+            seen.add(track_id)
+            x1, y1, x2, y2 = track["xyxy"]
+            point = ((x1 + x2) / 2, y2)  # bottom-centre matches app.py
+            distance = self._signed_distance(point, line, length)
+            along = ((point[0] - line[0]) * (line[2] - line[0]) +
+                     (point[1] - line[1]) * (line[3] - line[1])) / (length * length)
+            info = self._tracks.setdefault(track_id, {"side": 0, "violated": False})
+            current_side = 1 if distance > margin else -1 if distance < -margin else 0
+            crossed = (red_active and not info["violated"] and current_side == -approach_sign
+                       and info["side"] == approach_sign and -0.15 <= along <= 1.15)
+            if crossed:
+                info["violated"] = True
+                events.append({
+                    "track_id": track_id,
+                    "vehicle_class": track["cls"],
+                    "detection_confidence": track["conf"],
+                    "bbox": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
+                    "frame_sequence": frame_sequence,
+                    "occurred_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                    "signal_state": state,
+                    "red_started_at": datetime.fromtimestamp(state_updated_at, timezone.utc).isoformat(),
+                    "stop_line_snapshot": stop_line,
+                    "config_version": config.get("config_version"),
+                })
+            if current_side:
+                info["side"] = current_side
+            info["last_seen"] = frame_sequence
+
+        # Bound memory when ByteTrack expires IDs or streams run for a long time.
+        for track_id, info in list(self._tracks.items()):
+            if track_id not in seen and frame_sequence - info.get("last_seen", frame_sequence) > 300:
+                del self._tracks[track_id]
+        return events
+
+
+red_light_rule = RedLightRule()
 
 
 # ---------------------------------------------------------------- MediaMTX control API
@@ -567,6 +670,13 @@ class Publisher(threading.Thread):
 
 
 # ---------------------------------------------------------------- pipeline
+def encode_jpg_b64(image, quality=85):
+    ok, data = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if not ok:
+        raise RuntimeError("could not encode evidence frame as JPEG")
+    return base64.b64encode(data).decode("ascii")
+
+
 def preprocess_for_ocr(crop):
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
@@ -655,49 +765,116 @@ def extract_tracks(result):
 
 
 def handle_frame(tracks, frame, ts, frame_seq, plate_model, ocr_reader):
-    """Rule engine hook. Runs on EVERY frame, whether or not anyone is watching.
-
-    `frame` is the raw, unannotated frame. Take evidence snapshots and clips from it,
-    because the annotated frame only exists while a viewer is connected.
-
-    Plug in, in this order:
-      signal state provider -> red-light rule (per-track state machine)
-      -> evidence ring buffer -> plate OCR on violating tracks -> outbox/POST.
-    """
-    for track in tracks:
-        # Dummy rule to invoke plate reading
-        if (track["id"]%15)==0:
-            continue
-        if track["id"] not in plate_cache:
-            plate_cache[track["id"]] = recognize_plate(
-                frame, track["xyxy"], plate_model, ocr_reader
-            )
-        track["plate_recognition"] = plate_cache[track["id"]]
-
+    """Apply the signal and stop-line rule to each live frame; OCR only violators."""
     with camera_config_lock:
         active_config = dict(camera_config)
+    signal = signal_state.read()
+    violations = red_light_rule.evaluate(
+        tracks, active_config, frame.shape, signal, frame_seq, now=ts
+    )
+    tracks_by_id = {track["id"]: track for track in tracks}
+    for violation in violations:
+        track = tracks_by_id[violation["track_id"]]
+        plate_result = recognize_plate(frame, track["xyxy"], plate_model, ocr_reader)
+        plates = plate_result["plates"]
+        plate = next((item for item in plates if item["plate_text"]), None)
+        violation["plate_recognition"] = plate_result
+        violation["detected_plate_raw"] = plate["plate_text"] if plate else None
+        violation["plate_confidence"] = plate["ocr_confidence"] if plate else None
+        violation["evidence_image_base64"] = encode_jpg_b64(frame, quality=80)
+        log.warning(
+            "RED_LIGHT violation: track=%s class=%s plate=%s frame=%s",
+            violation["track_id"], violation["vehicle_class"],
+            violation["detected_plate_raw"] or "unreadable", violation["frame_sequence"],
+        )
+
     detection_state.replace({
         "camera_id": CAMERA_ID,
         "timestamp_unix": round(ts, 3),
         "frame_sequence": frame_seq,
         "config_version": active_config.get("config_version"),
+        "signal_state": signal[0],
         "calibrated": active_config.get("stop_line") is not None,
         "stop_line": active_config.get("stop_line"),
         "frame_width": active_config.get("frame_width"),
         "frame_height": active_config.get("frame_height"),
         "red_grace_seconds": active_config.get("red_grace_seconds", 0.0),
         "tracks": tracks,
+        "violations": violations,
     })
 
 
 def reset_tracker(model):
     """Clear ByteTrack state after a stream reconnect so IDs do not carry over."""
     plate_cache.clear()
+    red_light_rule.reset()
     try:
         for t in model.predictor.trackers:
             t.reset()
     except Exception:
         pass
+
+
+def cli_rule_self_test():
+    """Exercise signal -> calibrated line -> crossing -> one evidence event."""
+    global camera_config
+    red_light_rule.reset()
+    camera_config = {
+        "config_version": 7,
+        "frame_width": 200,
+        "frame_height": 200,
+        "stop_line": {
+            "p1": {"x": 20, "y": 100},
+            "p2": {"x": 180, "y": 100},
+            "approach_side": "below",
+        },
+        "red_grace_seconds": 0.5,
+    }
+    frame = np.zeros((400, 400, 3), dtype=np.uint8)
+
+    class EmptyPlateModel:
+        def predict(self, *_args, **_kwargs):
+            return [type("Result", (), {"boxes": None})()]
+
+    track = lambda track_id, top, bottom: {
+        "id": track_id, "cls": "car", "conf": 0.93,
+        "xyxy": [160.0, top, 240.0, bottom],
+    }
+    model = EmptyPlateModel()
+    ocr = object()
+
+    signal_state.write("GREEN")
+    handle_frame([track(1, 220, 260)], frame, time.time(), 1, model, ocr)
+    handle_frame([track(1, 100, 140)], frame, time.time(), 2, model, ocr)
+    if detection_state.latest().get("violations"):
+        raise AssertionError("a green-light crossing was incorrectly reported")
+
+    signal_state.write("RED")
+    red_started = signal_state.read()[1]
+    handle_frame([track(4, 220, 260)], frame, red_started + 0.1, 3, model, ocr)
+    handle_frame([track(4, 100, 140)], frame, red_started + 0.3, 4, model, ocr)
+    if detection_state.latest().get("violations"):
+        raise AssertionError("a crossing during the red grace period was reported")
+
+    handle_frame([track(2, 220, 260)], frame, red_started + 0.4, 5, model, ocr)
+    handle_frame([track(2, 100, 140)], frame, red_started + 0.8, 6, model, ocr)
+    event = detection_state.latest()["violations"]
+    if len(event) != 1 or event[0]["track_id"] != 2:
+        raise AssertionError(f"expected one RED crossing event, got {event!r}")
+    if event[0]["config_version"] != 7 or not event[0]["evidence_image_base64"]:
+        raise AssertionError("violation is missing calibration version or frame evidence")
+
+    handle_frame([track(2, 80, 120)], frame, red_started + 1.0, 7, model, ocr)
+    if detection_state.latest().get("violations"):
+        raise AssertionError("the same track generated a duplicate violation")
+
+    handle_frame([track(3, 100, 140)], frame, red_started + 1.1, 8, model, ocr)
+    handle_frame([track(3, 220, 260)], frame, red_started + 1.2, 9, model, ocr)
+    if detection_state.latest().get("violations"):
+        raise AssertionError("a crossing from the exit side was incorrectly reported")
+
+    print("CLI red-light workflow PASS: signal state, scaled line, grace period, direction, "
+          "single event and JPEG evidence")
 
 
 def main():
@@ -797,4 +974,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Per-camera vehicle detection worker")
+    parser.add_argument("--self-test-rules", action="store_true",
+                        help="run a local synthetic red-light workflow check without services")
+    args = parser.parse_args()
+    if args.self_test_rules:
+        cli_rule_self_test()
+    else:
+        main()

@@ -1,17 +1,28 @@
-export type UserStatus = 'active' | 'inactive'
-
-export type UserRole = 'administrator' | 'officer'
+export type UserRole = 'ADMIN' | 'OFFICER'
 
 export interface User {
-  id: number
+  id: string
   name: string
-  email: string
+  badge_number: string
   role: UserRole
-  status: UserStatus
-  lastActive: string
-  joinedDate: string
+  email: string
 }
 
 export interface UsersData {
   users: User[]
+}
+
+export interface CreateUserRequest {
+  name: string
+  badge_number: string
+  role: UserRole
+  email: string
+  password: string
+}
+
+export interface UpdateUserRequest {
+  name?: string
+  badge_number?: string
+  role?: UserRole
+  email?: string
 }

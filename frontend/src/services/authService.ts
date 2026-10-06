@@ -1,31 +1,32 @@
-import type {
-  LoginRequest,
-  LoginResponse,
-  SignupRequest,
-  SignupResponse,
-} from '../types/auth'
-
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3000/api/v1'
-
-export async function signup(
-  data: SignupRequest,
-): Promise<SignupResponse> {
-  void data
-  return { success: false, message: 'Account signup is disabled. Ask an administrator to create your account.' }
-}
+import type {ChangePasswordRequest,LoginRequest,LoginResponse,MeResponse} from '../types/auth'
+import { apiClient } from './apiClient'
 
 export async function login(
   data: LoginRequest,
 ): Promise<LoginResponse> {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  return apiClient<LoginResponse>('/auth/login', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(data),
   })
+}
 
-  const result: LoginResponse = await response.json()
-  if (!response.ok) throw new Error('Email or password is incorrect.')
-  return result
+export async function getCurrentUser(): Promise<MeResponse> {
+  const token = sessionStorage.getItem('access_token')
+
+  return apiClient<MeResponse>('/auth/me', {
+    method: 'GET',
+    token: token ?? undefined,
+  })
+}
+
+export async function changePassword(
+  data: ChangePasswordRequest,
+): Promise<void> {
+  const token = sessionStorage.getItem('access_token')
+
+  await apiClient<void>('/auth/change-password', {
+    method: 'POST',
+    token: token ?? undefined,
+    body: JSON.stringify(data),
+  })
 }

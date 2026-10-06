@@ -1,18 +1,57 @@
-import { monitoringData } from '../mock-data/monitoring'
-import type { MonitoringData } from '../types/monitoring'
+import type {
+  Camera,
+  CameraCreateRequest,
+} from '../types/monitoring'
 
-const USE_MOCK_DATA = true
+import { apiClient } from './apiClient'
 
-export async function getMonitoringData(): Promise<MonitoringData> {
-  if (USE_MOCK_DATA) {
-    return monitoringData
-  }
+interface CamerasApiResponse {
+  data: Camera[]
+}
 
-  const response = await fetch('/api/monitoring')
+export async function getCameras(): Promise<Camera[]> {
+  const token =
+    sessionStorage.getItem('access_token')
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch monitoring data')
-  }
+  const response =
+    await apiClient<CamerasApiResponse>(
+      '/cameras',
+      {
+        method: 'GET',
+        token: token ?? undefined,
+      },
+    )
 
-  return response.json()
+  return response.data
+}
+
+export async function getCamera(
+  id: string,
+): Promise<Camera> {
+  const token =
+    sessionStorage.getItem('access_token')
+
+  return apiClient<Camera>(
+    `/cameras/${id}`,
+    {
+      method: 'GET',
+      token: token ?? undefined,
+    },
+  )
+}
+
+export async function createCamera(
+  data: CameraCreateRequest,
+): Promise<Camera> {
+  const token =
+    sessionStorage.getItem('access_token')
+
+  return apiClient<Camera>(
+    '/cameras',
+    {
+      method: 'POST',
+      token: token ?? undefined,
+      body: JSON.stringify(data),
+    },
+  )
 }

@@ -3,7 +3,18 @@ import type { RecentViolation } from '../../types/dashboard'
 
 interface RecentViolationsProps {
   violations: RecentViolation[]
-  onViewViolation: (id: number) => void
+  onViewViolation: (id: string) => void
+}
+
+function formatViolationTime(
+  occurredAt: string,
+): string {
+  return new Intl.DateTimeFormat('en-NP', {
+    timeZone: 'Asia/Kathmandu',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(occurredAt))
 }
 
 function RecentViolations({
@@ -15,7 +26,6 @@ function RecentViolations({
       <div className="dashboard-panel-header">
         <div>
           <h3>Recent Violations</h3>
-          <p>Latest detected traffic violations</p>
         </div>
 
         <span className="dashboard-count">
@@ -40,18 +50,24 @@ function RecentViolations({
             {violations.map((violation) => (
               <tr key={violation.id}>
                 <td>
-                  <strong>{violation.vehicleNumber}</strong>
+                  <strong>
+                    {violation.plate ?? 'Unknown'}
+                  </strong>
                 </td>
 
-                <td>{violation.violation}</td>
+                <td>{violation.violationType}</td>
 
                 <td>{violation.camera}</td>
 
-                <td>{violation.time}</td>
+                <td>
+                  {formatViolationTime(
+                    violation.occurredAt,
+                  )}
+                </td>
 
                 <td>
                   <span
-                    className={`violation-status ${violation.status}`}
+                    className={`violation-status ${violation.status.toLowerCase()}`}
                   >
                     {violation.status}
                   </span>

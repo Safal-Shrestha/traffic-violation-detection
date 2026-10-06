@@ -9,7 +9,7 @@ function CameraStatus({
   cameras,
 }: CameraStatusProps) {
   const online = cameras.filter(
-    (camera) => camera.status === 'online',
+    (camera) => camera.workerOnline,
   ).length
 
   const offline = cameras.length - online
@@ -19,7 +19,6 @@ function CameraStatus({
       <div className="dashboard-panel-header">
         <div>
           <h3>Camera Status</h3>
-          <p>Current system availability</p>
         </div>
       </div>
 

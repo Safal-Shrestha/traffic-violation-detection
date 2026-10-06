@@ -4,11 +4,9 @@ import { useNavigate, useParams } from 'react-router'
 
 import ViolationEvidence from '../components/violation-review/ViolationEvidence'
 import ViolationDetails from '../components/violation-review/ViolationDetails'
-import ViolationDetectionInfo from '../components/violation-review/ViolationDetectionInfo'
 import ViolationReviewActions from '../components/violation-review/ViolationReviewActions'
-
-import { getViolationsData } from '../services/violationsService'
-import type { Violation } from '../types/violations'
+import { confirmViolation, getViolation, rejectViolation, reopenViolation } from '../services/violationsService'
+import type { ViolationDetail} from '../types/violations'
 
 import '../css/violation-review.css'
 
@@ -17,26 +15,71 @@ function ViolationReview() {
   const navigate = useNavigate()
 
   const [violation, setViolation] =
-    useState<Violation | null>(null)
+    useState<ViolationDetail | null>(null)
+
+  const [error, setError] =
+    useState<string | null>(null)
 
   useEffect(() => {
-    getViolationsData().then((data) => {
-      const selectedViolation = data.violations.find(
-        (item) => item.id === Number(id),
-      )
+    if (!id) {
+      return
+    }
 
-      setViolation(selectedViolation ?? null)
-    })
+    getViolation(id)
+      .then((data) => {
+        setViolation(data)
+        setError(null)
+      })
+      .catch(() => {
+        setViolation(null)
+        setError(
+          'The requested violation could not be found.',
+        )
+      })
   }, [id])
 
-  if (!violation) {
+  const handleReviewAction = async (
+    action: 'confirm' | 'reject' | 'reopen',
+    notes: string,
+  ) => {
+    if (!violation) {
+      return
+    }
+
+    let response
+
+    switch (action) {
+      case 'confirm':
+        response = await confirmViolation(
+          violation.id,
+          notes ? { notes } : {},
+        )
+        break
+
+      case 'reject':
+        response = await rejectViolation(
+          violation.id,
+          { notes },
+        )
+        break
+
+      case 'reopen':
+        response = await reopenViolation(
+          violation.id,
+          { notes },
+        )
+        break
+    }
+
+    setViolation(response.violation)
+  }
+
+  if (!id) {
     return (
       <div className="review-not-found">
         <h2>Violation Not Found</h2>
 
-        <p>
-          The requested violation could not be found.
-        </p>
+        <p>Invalid violation ID.</p>
 
         <button
           onClick={() => navigate('/violations')}
@@ -48,16 +91,30 @@ function ViolationReview() {
     )
   }
 
-  const updateViolationStatus = (
-    status: Violation['status'],
-  ) => {
-    setViolation((current) =>
-      current
-        ? {
-            ...current,
-            status,
-          }
-        : null,
+  if (error) {
+    return (
+      <div className="review-not-found">
+        <h2>Violation Not Found</h2>
+
+        <p>{error}</p>
+
+        <button
+          onClick={() => navigate('/violations')}
+        >
+          <ArrowLeft size={17} />
+          Back to Violations
+        </button>
+      </div>
+    )
+  }
+
+  if (!violation) {
+    return (
+      <div className="review-not-found">
+        <h2>Loading Violation</h2>
+
+        <p>Loading violation details...</p>
+      </div>
     )
   }
 
@@ -74,30 +131,29 @@ function ViolationReview() {
           </button>
 
           <h1>
-            Violation #
-            {String(violation.id).padStart(3, '0')}
+            Violation #{violation.id.slice(0, 8)}
           </h1>
 
           <p>
-            {violation.camera} · {violation.location}
+            {violation.camera.name}
           </p>
         </div>
       </div>
 
-      <div className="review-main-grid">
-        <ViolationEvidence violation={violation} />
-
-        <ViolationDetails violation={violation} />
-      </div>
-
-      <ViolationDetectionInfo
+      <ViolationEvidence
         violation={violation}
       />
 
-      <ViolationReviewActions
-        status={violation.status}
-        onStatusChange={updateViolationStatus}
-      />
+      <div className="review-bottom-grid">
+        <ViolationDetails
+          violation={violation}
+        />
+
+        <ViolationReviewActions
+          violation={violation}
+          onAction={handleReviewAction}
+        />
+      </div>
     </div>
   )
 }

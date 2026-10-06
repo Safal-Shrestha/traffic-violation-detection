@@ -1,21 +1,17 @@
 import { Search } from 'lucide-react'
-import type { UserRole, UserStatus } from '../../types/users'
+import type { UserRole } from '../../types/users'
 
 interface UserFiltersProps {
   search: string
-  status: UserStatus | 'all'
   role: UserRole | 'all'
   onSearchChange: (value: string) => void
-  onStatusChange: (value: UserStatus | 'all') => void
   onRoleChange: (value: UserRole | 'all') => void
 }
 
 function UserFilters({
   search,
-  status,
   role,
   onSearchChange,
-  onStatusChange,
   onRoleChange,
 }: UserFiltersProps) {
   return (
@@ -27,20 +23,11 @@ function UserFilters({
           type="text"
           placeholder="Search users..."
           value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
+          onChange={(event) =>
+            onSearchChange(event.target.value)
+          }
         />
       </div>
-
-      <select
-        value={status}
-        onChange={(event) =>
-          onStatusChange(event.target.value as UserStatus | 'all')
-        }
-      >
-        <option value="all">All Status</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
-      </select>
 
       <select
         value={role}
@@ -49,8 +36,8 @@ function UserFilters({
         }
       >
         <option value="all">All Roles</option>
-        <option value="administrator">Administrator</option>
-        <option value="officer">Officer</option>
+        <option value="ADMIN">Administrator</option>
+        <option value="OFFICER">Officer</option>
       </select>
     </div>
   )

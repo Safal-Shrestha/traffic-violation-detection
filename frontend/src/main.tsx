@@ -12,7 +12,8 @@ import './index.css'
 
 import AppLayout from './components/layout/AppLayout'
 import Login from './pages/Login'
-import Signup from './pages/Signup'
+// import Signup from './pages/Signup'
+import ProtectedRoute from './components/auth/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
 import LiveMonitoring from './pages/LiveMonitoring'
 import ViolationReview from './pages/ViolationReview'
@@ -30,22 +31,30 @@ import { AuthProvider } from './context/AuthProvider'
 const router = createBrowserRouter([
   { path: '/', element: <Login /> },
   { path: '/login', element: <Login /> },
-  { path: '/signup', element: <Signup /> },
+  // { path: '/signup', element: <Signup /> },
   {
-    element: <AppLayout />,
+    element: <ProtectedRoute />,
     children: [
-      { path: 'dashboard', element: <Dashboard /> },
-      { path: 'live', element: <LiveMonitoring /> },
-      { path: 'violations', element: <Violations /> },
-      { path: 'violations/:id', element: <ViolationReview /> },
-      { path: 'vehicles', element: <Vehicles /> },
-      { path: 'cameras', element: <Cameras /> },
-      { path: 'analytics', element: <Analytics /> },
-      // { path: 'ai-models', element: <AIModels /> },
-      { path: 'users', element: <Users /> },
-      { path: 'settings', element: <Settings /> },
+      {
+        element: <AppLayout />,
+        children: [
+          { path: 'dashboard', element: <Dashboard /> },
+          { path: 'live', element: <LiveMonitoring /> },
+          { path: 'violations', element: <Violations /> },
+          {
+            path: 'violations/:id',
+            element: <ViolationReview />,
+          },
+          { path: 'vehicles', element: <Vehicles /> },
+          { path: 'cameras', element: <Cameras /> },
+          { path: 'analytics', element: <Analytics /> },
+          // { path: 'ai-models', element: <AIModels /> },
+          { path: 'users', element: <Users /> },
+          { path: 'settings', element: <Settings /> },
+        ],
+      },
     ],
-  },
+  }
 ])
 
 const queryClient = new QueryClient()

@@ -10,6 +10,7 @@ POST /plate/detect    -> image + vehicle bbox in, plate text (EasyOCR) out
 import base64
 import json
 import logging
+import math
 import os
 import tempfile
 import threading
@@ -434,6 +435,201 @@ def plate_detect():
 
     return jsonify({"device": DEVICE, "results": out})
 
+
+
+# Red-light violation detection
+
+def find_plates(crop, conf=0.25, pad=0.05):
+    """Plate boxes + OCR inside a vehicle crop, best detection first."""
+    with plate_lock:
+        res = plate_model.predict(crop, conf=conf, device=DEVICE, half=USE_GPU, verbose=False)[0]
+    out = []
+    if res.boxes is None or not len(res.boxes):
+        return out
+    ch, cw = crop.shape[:2]
+    pairs = zip(res.boxes.xyxy.cpu().numpy(), res.boxes.conf.cpu().numpy())
+    for (x1, y1, x2, y2), c in sorted(pairs, key=lambda t: -t[1]):
+        dx, dy = (x2 - x1) * pad, (y2 - y1) * pad
+        pc = crop[max(0, int(y1 - dy)):min(ch, int(y2 + dy)), max(0, int(x1 - dx)):min(cw, int(x2 + dx))]
+        if pc.size == 0:
+            continue
+        text, oc, _ = read_plate_text(pc)
+        out.append({"plate_text": text, "ocr_confidence": round(oc, 4),
+                    "detection_confidence": round(float(c), 4),
+                    "plate_image_base64": encode_jpg_b64(pc)})
+    return out
+
+
+def draw_evidence(frame, line, box, label):
+    img = frame.copy()
+    h, w = img.shape[:2]
+    th = max(2, w // 400)
+    cv2.line(img, (int(line[0]), int(line[1])), (int(line[2]), int(line[3])), (0, 0, 255), th * 2)
+    x1, y1, x2, y2 = [int(v) for v in box]
+    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 165, 255), th)
+    fs = max(0.6, w / 1600)
+    (tw, texth), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, fs, th)
+    cv2.rectangle(img, (x1, max(0, y1 - texth - 10)), (x1 + tw + 8, y1), (0, 165, 255), -1)
+    cv2.putText(img, label, (x1 + 4, max(texth + 2, y1 - 6)), cv2.FONT_HERSHEY_SIMPLEX, fs, (0, 0, 0), th)
+    if w > 1280:
+        img = cv2.resize(img, (1280, int(h * 1280 / w)))
+    return img
+
+
+@app.route("/violation/detect", methods=["POST"])
+def violation_detect():
+    """
+    multipart/form-data:
+      file          video (required)
+      line          stop line [x1,y1,x2,y2] in video pixels (required)
+      red_start     second at which the light turns red (required)
+      red_end       second at which it ends (optional, default: end of video)
+      to_side       'positive' | 'negative' | 'any' - which side of the line vehicles
+                    must END on to count (the frontend arrow), default any
+      ref_width/ref_height  video size the line was drawn on (line is rescaled)
+      conf, iou, frame_stride (default 2), margin (px dead-zone around the line, default 8),
+      plate_conf
+
+    A vehicle is a violator when its bottom-centre point moves from one side of
+    the line to the other while the light is red.
+    """
+    f = request.files.get("file") or request.files.get("video")
+    if f is None:
+        raise ApiError("Upload a video as multipart field 'file'")
+    line = parse_boxes(get_param("line"))
+    if not line:
+        raise ApiError("Provide the stop line as 'line' = [x1,y1,x2,y2]")
+
+    def num(k, d=None):
+        v = get_param(k)
+        return float(v) if v not in (None, "") else d
+    try:
+        red_start, red_end = num("red_start"), num("red_end")
+        conf, iou = num("conf", 0.25), num("iou", 0.5)
+        stride = max(1, int(num("frame_stride", 2)))
+        margin, plate_conf = num("margin", 8), num("plate_conf", 0.25)
+        ref_w, ref_h = num("ref_width"), num("ref_height")
+    except ValueError:
+        raise ApiError("Numeric parameters must be numbers")
+    if red_start is None or red_start < 0:
+        raise ApiError("'red_start' (seconds) is required")
+    if red_end is not None and red_end <= red_start:
+        raise ApiError("'red_end' must be after 'red_start'")
+    to_side = {"positive": 1, "negative": -1, "any": 0}.get(str(get_param("to_side", "any")).lower())
+    if to_side is None:
+        raise ApiError("to_side must be positive, negative or any")
+
+    ext = os.path.splitext(f.filename or "")[1].lower() or ".mp4"
+    tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+    cap = None
+    try:
+        f.save(tmp)
+        tmp.close()
+        cap = cv2.VideoCapture(tmp.name)
+        if not cap.isOpened():
+            raise ApiError("Could not open video")
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        # start 2s early so tracks (and their side of the line) exist when the light turns red;
+        # run 1s past red so violators get a closer, clearer view for plate reading
+        start_f = max(0, int((red_start - 2.0) * fps))
+        end_f = int((red_end + 1.0) * fps) if red_end is not None else None
+
+        idx = 0
+        while idx < start_f and cap.grab():
+            idx += 1
+
+        tracks, in_red_ids, processed, geo = {}, set(), 0, None
+        with vehicle_lock:
+            while end_f is None or idx <= end_f:
+                if not cap.grab():
+                    break
+                cur, idx = idx, idx + 1
+                if (cur - start_f) % stride:
+                    continue
+                ok, frame = cap.retrieve()
+                if not ok:
+                    break
+                H, W = frame.shape[:2]
+                if geo is None:
+                    sx = W / ref_w if ref_w else 1.0
+                    sy = H / ref_h if ref_h else 1.0
+                    ax, ay = line[0][0] * sx, line[0][1] * sy
+                    bx, by = line[0][2] * sx, line[0][3] * sy
+                    L = math.hypot(bx - ax, by - ay)
+                    if L < 5:
+                        raise ApiError("Stop line is too short")
+                    mg = margin * (sx + sy) / 2
+                    geo = (ax, ay, bx, by)
+
+                res = vehicle_model.track(frame, persist=processed > 0, tracker=TRACKER_CFG, conf=conf,
+                                          iou=iou, device=DEVICE, half=USE_GPU, verbose=False)[0]
+                processed += 1
+                t = cur / fps
+                in_red = t >= red_start and (red_end is None or t <= red_end)
+                if res.boxes is None or res.boxes.id is None:
+                    continue
+
+                b = res.boxes
+                for (x1, y1, x2, y2), c, k, tid in zip(b.xyxy.cpu().numpy(), b.conf.cpu().numpy(),
+                                                       b.cls.cpu().numpy().astype(int),
+                                                       b.id.cpu().numpy().astype(int)):
+                    tid = int(tid)
+                    px, py = (x1 + x2) / 2, y2  # bottom-centre of the vehicle
+                    d = ((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / L  # signed px distance to line
+                    u = ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / L ** 2  # position along the line
+                    st = tracks.setdefault(tid, {"side": 0, "v": None})
+                    if in_red:
+                        in_red_ids.add(tid)
+                    if abs(d) > mg:  # dead-zone stops bbox jitter near the line from counting
+                        side = 1 if d > 0 else -1
+                        if (in_red and st["v"] is None and st["side"] and side != st["side"]
+                                and to_side in (0, side) and -0.15 <= u <= 1.15):
+                            area = float((x2 - x1) * (y2 - y1))
+                            st["v"] = {
+                                "cls": res.names[int(k)], "conf": float(c), "t": t, "idx": cur,
+                                "box": [float(x1), float(y1), float(x2), float(y2)],
+                                "area": area, "crop": frame[int(y1):int(y2), int(x1):int(x2)].copy(),
+                                "evidence": encode_jpg_b64(draw_evidence(
+                                    frame, geo, (x1, y1, x2, y2), f"#{tid} {res.names[int(k)]} t={t:.2f}s"), 80),
+                            }
+                        st["side"] = side
+                    v = st["v"]
+                    if v:  # keep the largest uncut view of the violator for plate reading
+                        area = float((x2 - x1) * (y2 - y1))
+                        if area > v["area"] and x1 > 1 and y1 > 1 and x2 < W - 1 and y2 < H - 1:
+                            v["area"], v["crop"] = area, frame[int(y1):int(y2), int(x1):int(x2)].copy()
+
+        violations = []
+        for tid, st in tracks.items():
+            v = st["v"]
+            if not v:
+                continue
+            plate = next((p for p in find_plates(v["crop"], plate_conf) if p["plate_text"]), None) \
+                if v["crop"].size else None
+            x1, y1, x2, y2 = v["box"]
+            violations.append({
+                "track_id": tid, "class_name": v["cls"], "confidence": round(v["conf"], 4),
+                "crossing_time_sec": round(v["t"], 3), "frame_index": v["idx"],
+                "bbox": {"x1": round(x1, 2), "y1": round(y1, 2), "x2": round(x2, 2), "y2": round(y2, 2)},
+                "evidence_image_base64": v["evidence"],
+                "vehicle_image_base64": encode_jpg_b64(v["crop"]) if v["crop"].size else None,
+                "plate": plate,
+            })
+        violations.sort(key=lambda x: x["crossing_time_sec"])
+
+        return jsonify({
+            "device": DEVICE, "fps": fps, "frame_stride": stride, "frames_processed": processed,
+            "red_start": red_start, "red_end": red_end,
+            "vehicles_in_red_window": len(in_red_ids),
+            "violations": violations,
+        })
+    finally:
+        if cap is not None:
+            cap.release()
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
 
 
 # Misc

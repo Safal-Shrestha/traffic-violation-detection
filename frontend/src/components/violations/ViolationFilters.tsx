@@ -5,6 +5,10 @@ interface ViolationFiltersProps {
   status: string
   type: string
   date: string
+  typeOptions: {
+    code: string
+    name: string
+  }[]
   onSearchChange: (value: string) => void
   onStatusChange: (value: string) => void
   onTypeChange: (value: string) => void
@@ -17,11 +21,12 @@ function ViolationFilters({
   status,
   type,
   date,
+  typeOptions,
   onSearchChange,
   onStatusChange,
   onTypeChange,
   onDateChange,
-  onClearFilters
+  onClearFilters,
 }: ViolationFiltersProps) {
   return (
     <div className="violations-filters">
@@ -30,7 +35,7 @@ function ViolationFilters({
 
         <input
           type="text"
-          placeholder="Search by vehicle number..."
+          placeholder="Search by plate number..."
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
         />
@@ -45,9 +50,9 @@ function ViolationFilters({
           aria-label="Filter by status"
         >
           <option value="all">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="rejected">Rejected</option>
+          <option value="PENDING">Pending</option>
+          <option value="CONFIRMED">Confirmed</option>
+          <option value="REJECTED">Rejected</option>
         </select>
 
         <select
@@ -56,10 +61,12 @@ function ViolationFilters({
           aria-label="Filter by violation type"
         >
           <option value="all">All Violations</option>
-          <option value="red-light">Red Light</option>
-          <option value="stop-line">Stop Line</option>
-          <option value="helmet">No Helmet</option>
-          <option value="speed">Speeding</option>
+
+          {typeOptions.map((option) => (
+            <option key={option.code} value={option.code}>
+              {option.name}
+            </option>
+          ))}
         </select>
 
         <div className="violations-date-picker">

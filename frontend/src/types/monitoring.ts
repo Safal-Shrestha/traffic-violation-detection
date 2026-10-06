@@ -1,35 +1,48 @@
-export interface DetectedVehicle {
-  id: number
-  plateNumber: string
-  vehicleType: string
-  color: string
-  confidence: number
-  speed: number
-  detectedAt: string
+export interface CameraPlayback {
+  webrtc_url: string | null
+  hls_url: string | null
 }
 
-export interface Detection {
-  id: number
-  type: 'red-light' | 'stop-line' | 'helmet' | 'speed'
-  label: string
-  confidence: number
-  timestamp: string
+export interface CameraSignal {
+  available: boolean
+  url: string | null
+  last_seen_at: string | null
 }
 
-export interface MonitoringCamera {
-  id: number
+export interface CameraWorker {
+  status: string | null
+  online: boolean
+  last_heartbeat: string | null
+  fps: number | null
+  image_version: string | null
+  model_version: string | null
+  rule_version: string | null
+}
+
+export interface CameraProvisioning {
+  status: string
+  source_video: string | null
+  error: string | null
+}
+
+export interface Camera {
+  id: string
   name: string
-  location: string
-  status: 'online' | 'offline'
-  resolution: string
-  fps: number
-  streamUrl?: string
+  district: string
+  municipality: string
+  status: string | null
+  installed_at: string | null
+  output_stream_key: string | null
+  signal_state_key: string | null
+
+  provisioning: CameraProvisioning
+  signal: CameraSignal
+  playback: CameraPlayback
+  worker: CameraWorker
 }
 
-export interface MonitoringData {
-  cameras: MonitoringCamera[]
-  selectedCameraId: number
-  detectedVehicles: DetectedVehicle[]
-  selectedVehicleId: number | null
-  detections: Detection[]
+export interface CameraCreateRequest {
+  name: string
+  district: string
+  municipality: string
 }

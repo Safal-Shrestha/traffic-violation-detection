@@ -34,8 +34,8 @@ function CameraFilters({
         }
       >
         <option value="all">All Status</option>
-        <option value="online">Online</option>
-        <option value="offline">Offline</option>
+        <option value="ACTIVE">Active</option>
+        <option value="INACTIVE">Inactive</option>
       </select>
     </div>
   )
