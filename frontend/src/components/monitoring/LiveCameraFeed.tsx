@@ -1,8 +1,8 @@
 import {
   useEffect,
   useRef,
+  useState,
 } from 'react'
-import Hls from 'hls.js'
 import {
   Camera,
   Circle,
@@ -20,30 +20,78 @@ function LiveCameraFeed({
 }: LiveCameraFeedProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const feedRef = useRef<HTMLDivElement>(null)
+  const [streamError, setStreamError] = useState('')
   const isOnline = camera.worker.online
-  const streamUrl = camera.playback.hls_url
+  const streamUrl = camera.playback.webrtc_url
 
   useEffect(() => {
     const video = videoRef.current
     if (!video || !isOnline || !streamUrl) return
+    const targetUrl = streamUrl
+    let closed = false
+    let peer: RTCPeerConnection | null = null
+    let sessionUrl: string | null = null
+    const targetVideo = video
+    setStreamError('')
 
-    // Safari and some other browsers can play HLS directly.
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = streamUrl
-      return
+    async function connect() {
+      try {
+        const endpoint = `${targetUrl.replace(/\/$/, '')}/whep`
+        const options = await fetch(endpoint, { method: 'OPTIONS' })
+        if (!options.ok) throw new Error(`MediaMTX WebRTC options failed (${options.status}).`)
+        const iceServers = (options.headers.get('Link') ?? '')
+          .split(/,\s*(?=<)/)
+          .flatMap((entry) => {
+            const match = entry.match(/<([^>]+)>;\s*rel="ice-server"(?:;\s*username="([^"]*)";\s*credential="([^"]*)";\s*credential-type="password")?/i)
+            return match ? [{ urls: match[1], ...(match[2] ? { username: match[2], credential: match[3] } : {}) }] : []
+          })
+
+        peer = new RTCPeerConnection({ iceServers })
+        peer.addTransceiver('video', { direction: 'recvonly' })
+        peer.ontrack = (event) => {
+          if (closed) return
+          targetVideo.srcObject = event.streams[0] ?? new MediaStream([event.track])
+          void targetVideo.play().catch(() => undefined)
+        }
+
+        const offer = await peer.createOffer()
+        await peer.setLocalDescription(offer)
+        if (peer.iceGatheringState !== 'complete') {
+          await new Promise<void>((resolve) => {
+            const onGathering = () => {
+              if (peer?.iceGatheringState !== 'complete') return
+              peer.removeEventListener('icegatheringstatechange', onGathering)
+              resolve()
+            }
+            peer?.addEventListener('icegatheringstatechange', onGathering)
+            window.setTimeout(() => {
+              peer?.removeEventListener('icegatheringstatechange', onGathering)
+              resolve()
+            }, 8000)
+          })
+        }
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/sdp' },
+          body: peer.localDescription?.sdp,
+        })
+        if (!response.ok) throw new Error(`MediaMTX could not start the WebRTC stream (${response.status}).`)
+        const location = response.headers.get('Location')
+        if (location) sessionUrl = new URL(location, endpoint).toString()
+        await peer.setRemoteDescription({ type: 'answer', sdp: await response.text() })
+        if (closed && sessionUrl) void fetch(sessionUrl, { method: 'DELETE' }).catch(() => undefined)
+      } catch (error) {
+        if (!closed) setStreamError(error instanceof Error ? error.message : 'Could not connect to the camera stream.')
+      }
     }
 
-    // Other browsers need HLS.js with Media Source Extensions.
-    if (!Hls.isSupported()) return
-
-    const hls = new Hls()
-    hls.loadSource(streamUrl)
-    hls.attachMedia(video)
-
+    void connect()
     return () => {
-      hls.destroy()
-      video.removeAttribute('src')
-      video.load()
+      closed = true
+      peer?.close()
+      targetVideo.srcObject = null
+      if (sessionUrl) void fetch(sessionUrl, { method: 'DELETE' }).catch(() => undefined)
     }
   }, [isOnline, streamUrl])
 
@@ -111,7 +159,7 @@ function LiveCameraFeed({
             </button>
 
             <div className="monitoring-feed-overlay">
-              <span>{new Date().toLocaleTimeString()}</span>
+              <span>{streamError || new Date().toLocaleTimeString()}</span>
             </div>
           </>
         ) : (

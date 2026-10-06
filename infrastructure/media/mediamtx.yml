@@ -19,8 +19,8 @@ authInternalUsers:
 #      - action: playback
 
 # Current RTSP account used by FFmpeg and workers.
-  - user: user
-    pass: mediamtx
+  - user: any
+    pass: 
     ips: []
     permissions:
       - action: publish
