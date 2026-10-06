@@ -1,280 +1,272 @@
-# Current deployment (Windows + WSL and Linux)
+# Three-laptop demo deployment
 
-The current topology keeps Rails and the worker manager in WSL on Windows
-`192.168.1.5`. MediaMTX, MinIO, the frontend, and source videos run on Linux
-`192.168.1.9`. The CPU-only detection worker runs as a Docker Desktop container
-managed locally by the WSL worker manager; it does not use a separate SSH target.
+This guide configures the traffic-violation demo across three laptops on the
+same private LAN. Run the setup script from the WSL distro that runs Rails and
+the worker manager. The script prompts for the addresses, Linux SSH accounts,
+checkout locations, model directory, and shared credentials; it writes the
+deployment environment values and checks SSH, services, files, and network
+access.
 
-## Current request and stream flow
+## Machine roles
 
-1. The browser loads the frontend from Linux `.9` and calls Rails at
-   `http://192.168.1.5:3000`.
-2. The manager in WSL claims the camera from Rails.
-3. Over SSH, the manager starts native Linux FFmpeg on `.9`; FFmpeg publishes
-   to MediaMTX at `.9:8554` using the RTSP `user` account.
-4. The manager starts the worker container through Docker Desktop. The
-   container reads/writes RTSP at `.9:8554`, calls Rails at `.5:3000`, and
-   exposes its control/signal ports through Docker Desktop to Windows `.5`.
-5. The worker uses the separate `worker` account for MediaMTX API calls.
+| Machine | Runs | Needs to reach |
+|---|---|---|
+| **A: Windows laptop, from WSL** | Rails API, PostgreSQL, worker manager | B and C over SSH; B's MediaMTX and MinIO; C's worker ports |
+| **B: Linux laptop** | MediaMTX, MinIO, frontend, demo videos, FFmpeg publishers | A's Rails API; C's worker callbacks |
+| **C: Linux laptop** | One Docker worker per camera, model files | A's Rails API; B's RTSP and MediaMTX API |
 
-## Configure the current machines
+Use stable LAN addresses or DHCP reservations. The browser may run on any
+machine that can reach A and B. Use the actual LAN addresses throughout; do not
+put `localhost` in a setting used by a different machine.
 
-### Windows / WSL at 192.168.1.5
+## Before running setup
 
-- Start Docker Desktop and enable WSL integration for the distro that runs the
-  manager. From that distro, `docker info` must reach the Docker Desktop engine.
-- Keep Rails bound to `0.0.0.0:3000`. WSL networking must allow the Linux laptop
-  to reach Windows `.5:3000`; use mirrored networking or a Windows port proxy
-  and firewall rule if the distro uses NAT.
-- In WSL, add the Linux host key once and authorize the WSL key on Linux as
-  described below. The manager's `.env` uses `VIDEO_SSH_TARGET=safal@192.168.1.9`
-  and `VIDEO_SSH_MODE=linux`; leave `WORKER_SSH_TARGET` empty.
-- Set `VIDEO_DIR_ON_B` to the Linux checkout's
-  `infrastructure/media/videos` directory. Keep worker build/model paths local
-  to WSL (`../worker`). The worker image uses `requirements-cpu.txt` and runs
-  with `DEVICE=cpu`.
-- Use bridge networking for the local Docker Desktop worker. Ports allocated
-  by the manager are published to Windows `.5`, where MediaMTX on `.9` can
-  reach the worker's `/hold` callback.
+### Laptop A: WSL
 
-### Linux at 192.168.1.9
+- Install Git, Ruby/Bundler for this repository, Python 3, `python3-venv`, and
+  OpenSSH client. Install the backend's PostgreSQL dependency and start the
+  database.
+- Start Docker Desktop only if this WSL distro needs it for other development;
+  in the three-laptop layout, worker Docker runs on C.
+- Configure Rails to listen on `0.0.0.0:3000`. Permit Linux B and C to reach
+  port 3000 through Windows Firewall/WSL networking. The Rails API and database
+  must already work locally.
+- Create an SSH key in WSL and add its public key to both B and C. Run
+  `ssh-copy-id <B_USER>@<B_IP>` and `ssh-copy-id <C_USER>@<C_IP>`, then confirm
+  `ssh <B_USER>@<B_IP> true` and `ssh <C_USER>@<C_IP> true` work without a
+  password prompt. The setup script uses non-interactive key-based SSH.
+- Keep local model files out of the worker manager's requirements; model weights
+  will be read from C.
 
-- Install and start OpenSSH server, Docker Engine/Compose, Node.js, and native
-  `ffmpeg`; the SSH account `safal` must be able to run FFmpeg and Docker.
-- Add the WSL manager's public key to `safal`'s `~/.ssh/authorized_keys`. From
-  WSL, `ssh-copy-id -i ~/.ssh/id_ed25519.pub safal@192.168.1.9` can do this
-  after interactive password login is enabled. Then verify with
-  `ssh -o BatchMode=yes safal@192.168.1.9 'command -v ffmpeg'`.
-- Start MediaMTX and MinIO from the repository compose files and start Vite
-  with `--host 0.0.0.0`. MediaMTX's RTSP account is `user` / `mediamtx`; the
-  API account remains `worker` / `mediamtx`. MinIO uses `minio-user` /
-  `minio-pw` in this development setup.
-- Allow inbound TCP `22`, `8554`, `8888`, `8889`, and `9000` as needed. Allow
-  `9997` from `.5` only, plus UDP `8189` for WebRTC viewers.
+### Laptop B: Linux media/frontend host
 
-## Previous three-laptop deployment (A / B / C, retained for reference)
+- Install and start Docker Engine and the Docker Compose plugin, native `ffmpeg`
+  with the `libx264` encoder, Node.js/npm, `curl`, and OpenSSH server.
+- Check out this repository. Keep the demo inputs at
+  `infrastructure/media/videos/junction1.mp4` through `junction4.mp4`.
+- The SSH account used by A must be able to run `docker`, `ffmpeg`, read the
+  videos, and edit the checkout's deployment `.env` files without `sudo`.
+- Set up MediaMTX's API account in `infrastructure/media/mediamtx.yml`. Its
+  username and password must match the values used by the setup prompt. The
+  existing example uses API user `worker`. Keep the RTSP publish/read rules
+  compatible with the worker and FFmpeg publisher.
 
-The following layout is the previous deployment pattern. Its settings remain
-below so they can be reused, but the current setup above is the active target.
+### Laptop C: Linux worker host
 
-This setup keeps the Rails API and worker manager on laptop A, the browser UI,
-MediaMTX, MinIO, and the four source videos on laptop B, and one Dockerized
-detection worker per camera on laptop C. Put all three laptops on the same
-trusted LAN and give each a stable address or DHCP reservation.
+- Install Docker Engine, Docker Compose plugin, OpenSSH server, and an NVIDIA
+  driver. For Docker GPU access, install and configure NVIDIA Container Toolkit
+  and permit the host to pull the `nvidia/cuda:12.4.1-base-ubuntu22.04` image.
+  The setup script uses that image to check that Docker can access the GPU.
+- Check out this repository. The SSH account used by A must be able to run
+  Docker without an interactive password prompt.
+- Put `vehicle_best.pt` and `plate_best.pt` in a directory readable by that
+  account. The setup script asks for the checkout and model paths and checks
+  that both files exist.
 
-## Request lifecycle
+## Configure from WSL on A
 
-1. An administrator signs in to the frontend on B. The frontend sends the
-   request to Rails on A using `VITE_API_BASE_URL`.
-2. `POST /api/v1/cameras` creates the camera, creates unique raw and annotated
-   stream keys, and marks provisioning `REQUESTED`.
-3. The manager on A polls Rails, selects one unassigned video from
-   `junction1.mp4` through `junction4.mp4`, and claims the camera with that
-   selection. It asks B over SSH to run FFmpeg against the selected file and
-   publish to its raw MediaMTX path, then asks C over SSH to start the worker
-   container.
-4. The worker on C reads the raw RTSP path, runs detection, and registers its
-   annotated path through MediaMTX's API. Its heartbeat changes provisioning
-   to `READY`.
-5. The frontend prompts for frame dimensions and stop-line coordinates. Saving
-   calibration stores it in Rails and increments `config_version`. The worker
-   polls the camera config endpoint and refreshes its in-memory config when the
-   version changes.
+From the repository root in WSL:
 
-Only four distinct videos are configured, so no more than four cameras can be
-created until the backend's demo-video list is expanded. Video assignment is
-serialized and unique in the database. A failed provisioning
-request is marked `ERROR` and retried by the manager. A `STARTING` request older
-than two minutes is reclaimable after a manager restart. Cameras whose worker
-heartbeat is stale for 30 seconds are reconciled again, including after laptop
-C or the manager restarts.
-
-## Install requirements
-
-### Laptop A: Rails backend and worker manager
-
-- Linux/macOS shell with Python 3 and `python-dotenv` (`python3 -m pip install
-  -r worker-manager/requirements.txt` if present; otherwise install
-  `python-dotenv`).
-- Ruby and Bundler versions from the repository, PostgreSQL, and the Rails
-  backend dependencies.
-- OpenSSH client and key-based SSH access to B and C. The manager must be able
-  to run remote commands without an interactive password prompt.
-- A reachable PostgreSQL database. Set `DB_HOST`, `DB_PORT`, credentials, and
-  database name in `backend/.env` (or the service environment).
-
-### Laptop B: frontend, MediaMTX, MinIO, and video source
-
-- Docker Engine and Docker Compose plugin.
-- Node.js and npm for the Vite frontend.
-- The four files `junction1.mp4` ... `junction4.mp4` in a directory readable by
-  the SSH account configured on A.
-- `ffmpeg` installed on the host. The manager launches a host FFmpeg process on
-  B to publish each selected file to MediaMTX.
-- Copy `infrastructure/media/.env.example` to `infrastructure/media/.env` and
-  set `MTX_WEBRTCADDITIONALHOSTS` to B's LAN IP. Configure a non-default
-  MediaMTX API password in `mediamtx.yml` and the matching manager setting.
-- Copy `infrastructure/minio/.env.example` to
-  `infrastructure/minio/.env`; set strong MinIO root credentials.
-
-### Laptop C: detection worker host
-
-- Docker Engine and an SSH account that can run Docker commands. Add that
-  account to the Docker group or configure rootless Docker.
-- A checkout of this repository at the path used for
-  `WORKER_BUILD_CONTEXT_ON_C`.
-- Model files `vehicle_best.pt` and `plate_best.pt` in the directory used for
-  `MODEL_DIR_ON_C`.
-- For GPU inference, a compatible NVIDIA driver and NVIDIA Container Toolkit;
-  otherwise the worker uses CPU and will process more slowly.
-
-## Configure addresses and secrets
-
-Use private LAN addresses, not `localhost`, in cross-laptop settings. Copy
-`worker-manager/.env.example` to `worker-manager/.env` on A and set:
-
-```dotenv
-BACKEND_URL=http://<A_IP>:3000
-WORKER_MANAGER_KEY=<same-secret-as-backend>
-WORKER_API_KEY=<same-secret-as-backend>
-SIGNAL_CONTROL_TOKEN=<shared-random-secret>
-
-VIDEO_SSH_TARGET=<ssh-user>@<B_IP>
-VIDEO_DIR_ON_B=/absolute/path/to/infrastructure/media/videos
-WORKER_SSH_TARGET=<ssh-user>@<C_IP>
-WORKER_BUILD_CONTEXT_ON_C=/absolute/path/to/repo/worker
-MODEL_DIR_ON_C=/absolute/path/to/model-weights
-
-MEDIAMTX_URL=rtsp://<B_IP>:8554
-VIDEO_PUBLISH_URL=rtsp://127.0.0.1:8554
-MEDIAMTX_HOST=<B_IP>
-MEDIAMTX_API_USER=worker
-MEDIAMTX_API_PASS=<same-password-as-MediaMTX-config>
-ADVERTISE_HOST=<C_IP>
+```sh
+python3 -m venv .venv-setup
+source .venv-setup/bin/activate
+python3 -m pip install -r worker-manager/requirements.txt
+python3 initialize-script/setup_three_laptops.py
 ```
 
-In `backend/.env`, use the same `WORKER_MANAGER_KEY` and `WORKER_API_KEY`.
-Set `MEDIAMTX_PLAYBACK_BASE=http://<B_IP>:8889` and
-`MEDIAMTX_HLS_BASE=http://<B_IP>:8888`. Set `S3_ENDPOINT=http://<B_IP>:9000`
-and the MinIO access key and secret to match laptop B. Rails creates the
-configured evidence bucket on first use; those credentials need bucket create,
-read, and write access.
+Enter A's LAN address, B and C's addresses and SSH usernames, both remote
+checkout paths, C's model directory, and the MediaMTX/MinIO/shared API
+credentials. Use SSH usernames, not display names. Secret prompts do not echo
+typed values; pressing Enter retains a usable value from the existing local
+environment or generates a shared API token where needed.
 
-On B, create `frontend/.env.local`:
+The first configuration run can report Rails or Vite as unavailable if those
+services are not running yet; the environment values are still written and the
+script starts MediaMTX and MinIO on B. Then start Rails on A and Vite on B, and
+run the setup script again to get the full live-network preflight. Restart Rails
+after the first run so it reads the updated `.env`; restart Vite so it reads the
+updated `frontend/.env.local`.
 
-```dotenv
-VITE_API_BASE_URL=http://<A_IP>:3000/api/v1
+The script updates only deployment environment files:
+
+- A: `backend/.env` and `worker-manager/.env`
+- B: `infrastructure/media/.env`, `infrastructure/minio/.env`, and
+  `frontend/.env.local`
+
+It preserves unrelated settings and creates timestamped `.bak-*` copies before
+editing. After updating B's environment files, it runs `docker compose up -d`
+for MediaMTX and MinIO so their new settings take effect. It does not install
+packages, start Rails/Vite/manager, copy model/video files, or alter application
+source. On a failed SSH precheck it makes no changes. If the later service
+checks fail, read the reported host/port/path and fix that prerequisite before
+running it again.
+
+The generated values route the browser and workers as follows:
+
+- Frontend on B calls Rails at `http://A:3000/api/v1`.
+- Rails stores evidence in MinIO on B at port 9000 and returns B's WebRTC
+  playback URL on port 8889.
+- The manager on A connects to B and C over SSH. B runs an FFmpeg publisher for
+  each selected video; C runs the corresponding worker container.
+- Workers on C read raw RTSP and publish annotated RTSP to B on port 8554. The
+  MediaMTX API on B (port 9997) registers annotated paths and their worker
+  callbacks.
+- Worker callbacks/signals advertise C's LAN address. B must be able to reach
+  the callback port allocated on C.
+- Rails proxies the live-feed signal controls to the worker, so the signal
+  control token stays in backend/worker environment files and is never exposed
+  to the browser.
+
+Do not commit `.env`, `.env.local`, or generated backups. Replace demo
+credentials with private values before the demo, and use this setup only on a
+trusted LAN.
+
+## Start the services
+
+### On B: MediaMTX, MinIO, and frontend
+
+From B's repository root:
+
+```sh
+docker compose -f infrastructure/media/docker-compose.yml up -d
+docker compose -f infrastructure/minio/docker-compose.yml up -d
+cd frontend
+npm install
+npm run dev -- --host 0.0.0.0
 ```
 
-The frontend currently calls the Rails API from the browser. Rails' API base
-controller permits cross-origin requests; keep the three machines on a trusted
-LAN because this demo uses HTTP. Do not reuse example passwords on a shared or
-public network.
+Confirm MediaMTX and MinIO are running with `docker compose ... ps`. Vite prints
+the frontend address, usually `http://B:5173`. Keep the Vite terminal open.
 
-## Start services
+### On A: PostgreSQL, Rails, and manager
 
-### Laptop A
+Start PostgreSQL using the local service manager, then from `backend/`:
 
-1. Start PostgreSQL and configure `backend/.env`.
-2. From `backend/`, install bundle dependencies, run database setup/migrations,
-   and start Rails bound to `0.0.0.0:3000`:
+```sh
+bundle install
+bin/rails db:prepare
+bin/rails server -b 0.0.0.0 -p 3000
+```
 
-   ```sh
-   bundle install
-   bin/rails db:prepare
-   bin/rails server -b 0.0.0.0 -p 3000
-   ```
+Create or verify the administrator account using the backend's configured seed
+or admin bootstrap process. In another WSL terminal:
 
-3. Create/verify the administrator account using the backend's configured seed
-   or admin bootstrap process.
-4. In a second shell, from `worker-manager/`, install `python-dotenv`, copy and
-   fill `.env`, then run:
+```sh
+cd worker-manager
+python3 -m pip install -r requirements.txt
+python3 manager.py
+```
 
-   ```sh
-   python3 manager.py
-   ```
+Leave Rails and the manager running. The manager polls Rails and provisions
+workers when cameras are requested; do not launch worker containers manually.
 
-The first worker image build is run on C through SSH. The worker manager needs
-outbound SSH from A to B and C, and HTTP access to Rails on A.
+### On C: worker readiness
 
-### Laptop B
+No worker is started manually. Keep Docker running, confirm the model files and
+GPU runtime check pass, then let the manager on A provision a camera. The
+manager builds the worker image on C from the remote `worker/` build context.
 
-1. Start MediaMTX and MinIO from the repository root:
+## Create and calibrate cameras
 
-   ```sh
-   docker compose -f infrastructure/media/docker-compose.yml up -d
-   docker compose -f infrastructure/minio/docker-compose.yml up -d
-   ```
+1. Open the Vite URL on B (or another LAN client) and sign in as an
+   administrator.
+2. Add a camera. The backend marks it `REQUESTED`; the manager assigns one of
+   the four demo videos and provisions the B publisher and C worker.
+3. Wait for `READY` and a fresh worker heartbeat. If provisioning fails, check
+   the manager terminal on A, `docker logs traffic-worker-<camera-id>` on C,
+   and `docker logs traffic-ffmpeg-<camera-id>` on B when FFmpeg runs in Docker
+   or its configured log file when it runs as a process.
+4. Open the camera calibration view. Set frame dimensions to match the stream,
+   draw the stop line across the lane, and save. Calibrate against the displayed
+   frame rather than guessing coordinates. Check that the worker reports the
+   newer config version after saving.
+5. In the monitoring view, confirm the annotated stream is visible. Open
+   `http://B:8889/<camera-id>-annotated` from a LAN browser for a direct WebRTC
+   playback check. Review the worker's detections and evidence records while
+   the video plays.
 
-2. Ensure `infrastructure/media/videos/junction1.mp4` through
-   `junction4.mp4` exist, and point `VIDEO_DIR_ON_B` at this directory.
-3. Start the frontend from `frontend/`:
+### Simulate a signal change
 
-   ```sh
-   npm install
-   npm run dev -- --host 0.0.0.0
-   ```
+The live feed has per-camera **Trigger red** and **Set green** buttons. The
+displayed signal state is read from that camera's worker and refreshes every
+few seconds. Set green first, then trigger red to create a clear red transition.
+The worker will record a red-light violation only when a tracked vehicle
+crosses that camera's calibrated stop line in the configured direction while
+the signal is red and the grace period has elapsed; changing the signal alone
+does not create a violation.
 
-Open the Vite URL from a browser on B (or another allowed viewer machine).
+Rails proxies these controls using `SIGNAL_CONTROL_TOKEN`. The token on A in
+`backend/.env` must exactly match the value in `worker-manager/.env`, which the
+manager passes to every worker. The three-laptop setup script keeps these
+values synchronized. For the current two-laptop setup, copy that existing token
+from `worker-manager/.env` into `backend/.env` and restart Rails. Signal
+controls require an administrator account and a fresh worker heartbeat.
 
-### Laptop C
+The sample has four distinct source videos, so create no more than four cameras
+unless the backend's demo-video list and available files are expanded. Each
+video can be assigned to only one camera at a time.
 
-Ensure Docker is running, model files exist, and A's SSH key can run `docker`
-without prompting. No worker is started manually: each camera request causes A's
-manager to start one worker container on C.
+## Network and firewall checklist
 
-## Firewall rules
+Restrict these ports to the listed LAN peers. Host firewalls must allow Docker
+published ports as well as host services.
 
-Permit only the listed source machines/subnets. Docker-published ports are
-reachable on the host, so firewall rules still matter.
-
-| Destination | Port/protocol | Allow from | Purpose |
-|---|---|---|---|
-| A | TCP 3000 | B and C | Rails API (browser and worker callbacks) |
-| A | TCP 5432 | A only, unless DB is elsewhere | PostgreSQL |
-| B | TCP 22 | A | Manager starts/stops the video publisher over SSH |
-| C | TCP 22 | A | Manager starts worker containers over SSH |
-| B | TCP 8554 | C and B | RTSP raw input and annotated output |
-| B | TCP 9997 | C only | MediaMTX control API |
+| Destination | Port/protocol | Allow from | Use |
+|---|---:|---|---|
+| A | TCP 3000 | B, C, browser | Rails API |
+| A | TCP 5432 | A only unless DB is remote | PostgreSQL |
+| B | TCP 22 | A | Manager starts/stops FFmpeg over SSH |
+| C | TCP 22 | A | Manager builds and starts workers over SSH |
+| B | TCP 8554 | C and local publisher | RTSP raw and annotated streams |
+| B | TCP 9997 | C, and A for diagnostics if needed | MediaMTX control API |
 | B | TCP 8889 | browser/viewer clients | WebRTC signaling and playback |
-| B | UDP 8189 | browser/viewer clients | WebRTC media transport |
-| B | TCP 8888 | browser/viewer clients, if HLS is used | HLS playback |
-| B | TCP 9000 | A, and browser clients if signed object URLs are used | MinIO S3 API |
-| B | TCP 9001 | administrator workstation only | MinIO console |
-| C | TCP 8081-8112 | B | Worker viewer hold callbacks, one port per worker |
-| C | TCP 5001-5032 | B and operator browsers | Worker signal-state APIs, one port per worker |
+| B | UDP 8189 | browser/viewer clients | WebRTC media |
+| B | TCP 8888 | browser clients only if HLS is used | HLS playback fallback |
+| B | TCP 9000 | A and browser if evidence links are direct | MinIO S3 API/evidence |
+| B | TCP 9001 | administrator workstation | MinIO console |
+| C | TCP 8081–8112 | B | Worker viewer-hold callbacks |
+| C | TCP 5001–5032 | B and browser if signal API is called directly | Worker signal API |
+| B | TCP 5173 | browser/viewer clients | Vite development frontend |
 
-The manager allocates control and signal ports from the ranges above. Increase
-the firewall ranges and `CONTROL_PORT_START` / `SIGNAL_PORT_START` together if
-you need more workers. Do not expose MediaMTX API, MinIO console, SSH, or worker
-control ports to the public internet. `MEDIAMTX_URL` is B's LAN address so C's
-workers can use it; `VIDEO_PUBLISH_URL` is for FFmpeg running on B and uses B's
-loopback address.
+Do not expose SSH, MediaMTX API, MinIO console, Rails development endpoints, or
+worker control ports to the public internet. Increase the worker callback and
+signal port ranges together with the manager's `CONTROL_PORT_START`,
+`SIGNAL_PORT_START`, and firewall rules if the demo uses more workers.
 
-## Verify one camera
+## GPU and dependency note
 
-1. In the browser on B, sign in as an administrator and add a camera.
-2. Confirm Rails returns a camera ID and `REQUESTED` provisioning status.
-3. On A, inspect manager output. On B, inspect `/tmp/traffic-ffmpeg-<camera-id>.log`.
-   On C, inspect `docker logs traffic-worker-<camera-id>`.
-4. Confirm the Rails camera reports provisioning `READY` and a fresh worker
-   heartbeat. The manager assigns a different video to every camera.
-5. Save calibration coordinates in the prompt. The worker logs the loaded config
-   version; after the save, it should report the incremented version.
-6. For stream diagnostics, check MediaMTX's API on B and view the annotated
-   stream at `http://<B_IP>:8889/<camera-id>-annotated` from an allowed browser.
+Both `worker/requirements.txt` and `worker/requirements-cpu.txt` already include
+the modules imported by `run_worker.py`, including Flask, Ultralytics,
+EasyOCR, OpenCV (`opencv-python-headless`), NumPy, PyTorch/torchvision,
+ByteTrack's `lapx`, and `python-dotenv`. No extra module is needed for the
+current worker imports.
 
-## Runtime notes
+The current worker Dockerfile installs `requirements-cpu.txt`, and the current
+manager does not add Docker's `--gpus all` option. Therefore this setup can
+verify that C has an NVIDIA GPU and the NVIDIA container runtime, but it does
+not enable GPU inference in the worker image. As requested, this deployment
+documentation/setup work leaves application and manager code unchanged. A code
+change is required before the provisioned worker can use the GPU or switch its
+image build to `requirements.txt`; until then it runs with the CPU dependency
+set.
 
-- Worker containers use host networking on C so the control and signal ports
-  are reachable at C's LAN address. The Docker daemon on C must support
-  `--network host`.
-- FFmpeg is a host process on B and is tracked with a PID file in `/tmp`.
-  Stop the manager gracefully before moving the source files or changing LAN
-  addresses.
-- Rails, PostgreSQL, and MinIO must be available before operators create
-  cameras. Rails stores camera configuration in PostgreSQL; video files remain
-  on B, and the model weights remain on C.
-- `deployment.md` describes a development LAN deployment. Use TLS, individual
-  per-worker credentials, restricted MediaMTX authentication, and managed
-  secrets before deploying beyond a trusted test network.
+## Troubleshooting
+
+- **SSH check fails:** run each `ssh <user>@<ip> true` from WSL, accept the
+  host key, install the WSL public key on the target, and grant the account
+  passwordless Docker access.
+- **Video check fails:** verify all four exact filenames under B's
+  `infrastructure/media/videos` and ensure A's SSH user can read them.
+- **MediaMTX API check fails:** confirm the `worker` API account is enabled in
+  `mediamtx.yml`, the username/password match `worker-manager/.env`, and TCP
+  9997 is reachable from C.
+- **Worker can't connect to Rails or MediaMTX:** check that A and B advertise
+  LAN IPs, not loopback addresses, and permit the corresponding firewall ports.
+- **Annotated path times out:** check B's MediaMTX logs and path state, C's
+  worker logs, and whether B can reach C's allocated control callback port.
+  Confirm the path has a publisher before diagnosing frontend playback.
+- **WebRTC connects but has no video:** allow B's UDP 8189 from browser clients
+  and set `MTX_WEBRTCADDITIONALHOSTS` on B to B's reachable LAN address.
+- **No violation evidence:** first verify the worker is processing frames,
+  then calibrate the stop line and signal state against the camera frame. Allow
+  time for the track/crossing rule to confirm a violation.

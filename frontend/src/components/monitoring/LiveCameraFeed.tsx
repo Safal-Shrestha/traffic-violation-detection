@@ -10,6 +10,11 @@ import {
 } from 'lucide-react'
 
 import type { Camera as CameraType } from '../../types/monitoring'
+import {
+  getCameraSignalState,
+  setCameraSignalState,
+  type SignalState,
+} from '../../services/monitoringService'
 
 interface LiveCameraFeedProps {
   camera: CameraType
@@ -21,8 +26,55 @@ function LiveCameraFeed({
   const videoRef = useRef<HTMLVideoElement>(null)
   const feedRef = useRef<HTMLDivElement>(null)
   const [streamError, setStreamError] = useState('')
+  const [signalState, setSignalState] = useState<SignalState | null>(null)
+  const [signalError, setSignalError] = useState('')
+  const [signalPending, setSignalPending] = useState(false)
   const isOnline = camera.worker.online
+  const signalAvailable = isOnline && camera.signal.available
   const streamUrl = camera.playback.webrtc_url
+
+  useEffect(() => {
+    if (!signalAvailable) {
+      setSignalState(null)
+      setSignalError('')
+      return
+    }
+
+    let active = true
+    setSignalState(null)
+    setSignalError('')
+    async function refreshSignal() {
+      try {
+        const response = await getCameraSignalState(camera.id)
+        if (active) {
+          setSignalState(response.state)
+          setSignalError('')
+        }
+      } catch {
+        if (active) setSignalError('Signal controller unavailable')
+      }
+    }
+
+    void refreshSignal()
+    const interval = window.setInterval(refreshSignal, 2500)
+    return () => {
+      active = false
+      window.clearInterval(interval)
+    }
+  }, [camera.id, signalAvailable])
+
+  async function changeSignal(state: SignalState) {
+    setSignalPending(true)
+    setSignalError('')
+    try {
+      const response = await setCameraSignalState(camera.id, state)
+      setSignalState(response.state)
+    } catch {
+      setSignalError('Could not change signal. Check Rails and worker connectivity.')
+    } finally {
+      setSignalPending(false)
+    }
+  }
 
   useEffect(() => {
     const video = videoRef.current
@@ -125,6 +177,33 @@ function LiveCameraFeed({
             {isOnline ? 'Online' : 'Offline'}
           </span>
         </div>
+      </div>
+
+      <div className="monitoring-signal-controls" aria-label={`${camera.name} traffic signal controls`}>
+        <span className={`monitoring-signal-state ${signalState?.toLowerCase() ?? 'unknown'}`}>
+          Signal: {signalState ?? (signalAvailable ? 'Loading' : 'Unavailable')}
+        </span>
+        <button
+          type="button"
+          className="monitoring-signal-button red"
+          aria-pressed={signalState === 'RED'}
+          disabled={!signalAvailable || signalPending}
+          onClick={() => void changeSignal('RED')}
+        >
+          Trigger red
+        </button>
+        <button
+          type="button"
+          className="monitoring-signal-button green"
+          aria-pressed={signalState === 'GREEN'}
+          disabled={!signalAvailable || signalPending}
+          onClick={() => void changeSignal('GREEN')}
+        >
+          Set green
+        </button>
+        <span className="monitoring-signal-help" role="status">
+          {signalPending ? 'Updating…' : signalError || 'Use green, then red to simulate a signal change.'}
+        </span>
       </div>
 
       <div

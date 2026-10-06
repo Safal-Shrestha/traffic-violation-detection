@@ -13,6 +13,8 @@ Rails.application.routes.draw do
       post "auth/change-password", to: "auth#change_password"
 
       resources :cameras, only: %i[index show create update]
+      get "cameras/:camera_id/signal", to: "camera_signals#show"
+      put "cameras/:camera_id/signal", to: "camera_signals#update"
       get "cameras/:camera_id/config", to: "camera_configs#show"
       put "cameras/:camera_id/config", to: "camera_configs#update"
       post "cameras/:camera_id/heartbeat", to: "worker_heartbeats#create"

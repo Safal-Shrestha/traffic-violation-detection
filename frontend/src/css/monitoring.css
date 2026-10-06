@@ -193,6 +193,68 @@
   gap: 14px;
 }
 
+.monitoring-signal-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.monitoring-signal-state {
+  margin-right: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.monitoring-signal-state.red {
+  color: #dc2626;
+}
+
+.monitoring-signal-state.yellow {
+  color: #d97706;
+}
+
+.monitoring-signal-state.green {
+  color: #16a34a;
+}
+
+.monitoring-signal-button {
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.monitoring-signal-button.red[aria-pressed='true'] {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: white;
+}
+
+.monitoring-signal-button.green[aria-pressed='true'] {
+  border-color: #16a34a;
+  background: #16a34a;
+  color: white;
+}
+
+.monitoring-signal-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.monitoring-signal-help {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
 /* Camera feed */
 
 .monitoring-feed {
