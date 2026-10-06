@@ -44,6 +44,8 @@ put `localhost` in a setting used by a different machine.
   with the `libx264` encoder, Node.js/npm, `curl`, and OpenSSH server.
 - Check out this repository. Keep the demo inputs at
   `infrastructure/media/videos/junction1.mp4` through `junction4.mp4`.
+- Update this checkout to the same project revision as A before the demo so the
+  frontend and infrastructure configuration match.
 - The SSH account used by A must be able to run `docker`, `ffmpeg`, read the
   videos, and edit the checkout's deployment `.env` files without `sudo`.
 - Set up MediaMTX's API account in `infrastructure/media/mediamtx.yml`. Its
@@ -55,10 +57,12 @@ put `localhost` in a setting used by a different machine.
 
 - Install Docker Engine, Docker Compose plugin, OpenSSH server, and an NVIDIA
   driver. For Docker GPU access, install and configure NVIDIA Container Toolkit
-  and permit the host to pull the `nvidia/cuda:12.4.1-base-ubuntu22.04` image.
+  and permit the host to pull the `nvidia/cuda:12.8.1-base-ubuntu24.04` image.
   The setup script uses that image to check that Docker can access the GPU.
 - Check out this repository. The SSH account used by A must be able to run
   Docker without an interactive password prompt.
+- Update the checkout on C to the same project revision as A. The manager builds
+  from C's `worker/` directory, including its Dockerfile and requirements files.
 - Put `vehicle_best.pt` and `plate_best.pt` in a directory readable by that
   account. The setup script asks for the checkout and model paths and checks
   that both files exist.
@@ -241,14 +245,28 @@ EasyOCR, OpenCV (`opencv-python-headless`), NumPy, PyTorch/torchvision,
 ByteTrack's `lapx`, and `python-dotenv`. No extra module is needed for the
 current worker imports.
 
-The current worker Dockerfile installs `requirements-cpu.txt`, and the current
-manager does not add Docker's `--gpus all` option. Therefore this setup can
-verify that C has an NVIDIA GPU and the NVIDIA container runtime, but it does
-not enable GPU inference in the worker image. As requested, this deployment
-documentation/setup work leaves application and manager code unchanged. A code
-change is required before the provisioned worker can use the GPU or switch its
-image build to `requirements.txt`; until then it runs with the CPU dependency
-set.
+The default remains a CPU build. `worker/Dockerfile` now accepts a
+`WORKER_REQUIREMENTS` build argument and defaults to `requirements-cpu.txt`.
+The manager adds `--gpus all` only when `WORKER_GPU=1`. For an NVIDIA worker,
+set the following in `worker-manager/.env` on A:
+
+```dotenv
+WORKER_GPU=1
+WORKER_REQUIREMENTS=requirements-gpu.txt
+WORKER_DEVICE=0
+WORKER_IMAGE=traffic-worker:demo-gpu
+```
+
+Use a different image tag from the CPU build so the manager will build the GPU
+image instead of reusing a cached CPU image. The three-laptop initializer sets
+these manager build/runtime values for C automatically. It also checks Docker
+GPU access before the demo. The GPU requirements pin the official PyTorch
+2.10.0/torchvision 0.25.0
+CUDA 12.8 pair for Python 3.12; see the [PyTorch install matrix](https://docs.pytorch.org/get-started/previous-versions/).
+
+For the current CPU setup, leave `WORKER_GPU=0`, use
+`WORKER_REQUIREMENTS=requirements-cpu.txt`, and keep the existing CPU image tag.
+Those defaults preserve the current Docker Desktop configuration.
 
 ## Troubleshooting
 

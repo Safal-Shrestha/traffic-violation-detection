@@ -21,6 +21,10 @@ python3 -m pip install -r requirements.txt
 python3 manager.py
 ```
 
-The manager builds `WORKER_IMAGE` locally from `WORKER_BUILD_CONTEXT` when it
-is missing and mounts `MODEL_DIR` in each worker. It uses SSH only for the
-Linux video host; an empty `WORKER_SSH_TARGET` selects Docker Desktop locally.
+The manager builds `WORKER_IMAGE` from the selected `WORKER_REQUIREMENTS` file
+when it is missing and mounts the model directory in each worker. The default
+is the CPU requirements and does not request a GPU. On a Linux NVIDIA worker,
+set `WORKER_GPU=1`, `WORKER_REQUIREMENTS=requirements-gpu.txt`,
+`WORKER_DEVICE=0`, and a distinct `WORKER_IMAGE` tag; the manager then passes
+Docker's `--gpus all` flag. The host must have NVIDIA Container Toolkit
+configured. An empty `WORKER_SSH_TARGET` selects Docker Desktop locally.

@@ -214,6 +214,9 @@ def main() -> int:
         "WORKER_BUILD_CONTEXT_ON_C": f"{c_repo.rstrip('/')}/worker",
         "MODEL_DIR_ON_C": c_models,
         "WORKER_DOCKER_NETWORK": "host",
+        "WORKER_GPU": "1",
+        "WORKER_REQUIREMENTS": "requirements-gpu.txt",
+        "WORKER_IMAGE": "traffic-worker:demo-gpu",
         "WORKER_DEVICE": "0",
         "WORKER_MANAGER_KEY": manager_key,
         "WORKER_API_KEY": worker_key,
@@ -290,7 +293,7 @@ command -v docker >/dev/null && docker info >/dev/null
 test -f "$repo/worker/Dockerfile"
 test -s "$models/vehicle_best.pt" && test -s "$models/plate_best.pt"
 command -v nvidia-smi >/dev/null && nvidia-smi -L
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi >/dev/null
+docker run --rm --gpus all nvidia/cuda:12.8.1-base-ubuntu24.04 nvidia-smi >/dev/null
 python3 - "$manager_ip" "$media_ip" <<'PY'
 import socket,sys
 for host,port in ((sys.argv[1],3000),(sys.argv[2],8554),(sys.argv[2],9997)):
@@ -317,8 +320,8 @@ echo 'C_OK: Docker, NVIDIA driver, models, Rails/MediaMTX network'
 
     print("\nNext: start Rails, then `cd worker-manager && python3 manager.py`; start Vite on B with `npm run dev -- --host 0.0.0.0`.")
     print("Add one camera and confirm worker provisioning reaches READY before calibrating it.")
-    print("GPU note: the current worker Dockerfile installs requirements-cpu.txt and manager.py does not pass Docker --gpus all.")
-    print("This setup script leaves application/deployment code unchanged; GPU inference needs that separate code change.")
+    print("GPU mode is enabled for this three-laptop setup with requirements-gpu.txt and Docker --gpus all.")
+    print("The CPU setup remains the default when WORKER_GPU=0.")
     return 0 if all_ok else 1
 
 

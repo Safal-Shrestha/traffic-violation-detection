@@ -52,7 +52,7 @@ The two endpoints are independent. The client decides which vehicle to read a pl
 | **lapx** | Linear assignment solver used by the ByteTrack and BoT-SORT trackers to match detections to existing tracks across frames. Without it, tracking fails. |
 | *(optional)* **gunicorn** | Production WSGI server, for deployments beyond `python app.py`. |
 
-> **GPU note:** a plain `pip install torch` can install a CPU-only build, especially on Windows. For NVIDIA GPUs, install the CUDA build first (command in `requirements.txt`).
+> **GPU note:** for a Linux/NVIDIA worker, install `requirements-gpu.txt` to get the pinned CUDA-enabled PyTorch and torchvision pair. Container deployments also need NVIDIA Container Toolkit and Docker's `--gpus all`; the worker manager controls that with `WORKER_GPU=1`. The CPU Docker build remains the default.
 
 ---
 
