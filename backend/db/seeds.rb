@@ -78,7 +78,7 @@ if ENV["SEED_DEMO_DATA"] == "1"
       # after uploading their objects to the bucket.
     end
 
-    [number, suffix, plate, owner, vehicle, violation]
+    [ number, suffix, plate, owner, vehicle, violation ]
   end
 
   asset_directory = Rails.root.join("db/seeds/evidence")
@@ -87,9 +87,9 @@ if ENV["SEED_DEMO_DATA"] == "1"
     frame_key = "demo/violations/#{violation.id}/frame.jpg"
     clip_key = "demo/violations/#{violation.id}/clip.mp4"
     objects = [
-      ["FULL_FRAME", "IMAGE", "image/jpeg", frame_key, asset_directory.join("#{suffix}-frame.jpg"), nil],
-      ["PLATE_CROP", "IMAGE", "image/jpeg", image_key, asset_directory.join("#{suffix}-plate.jpg"), nil],
-      ["CLIP", "VIDEO", "video/mp4", clip_key, asset_directory.join("#{suffix}-clip.mp4"), 3.0]
+      [ "FULL_FRAME", "IMAGE", "image/jpeg", frame_key, asset_directory.join("#{suffix}-frame.jpg"), nil ],
+      [ "PLATE_CROP", "IMAGE", "image/jpeg", image_key, asset_directory.join("#{suffix}-plate.jpg"), nil ],
+      [ "CLIP", "VIDEO", "video/mp4", clip_key, asset_directory.join("#{suffix}-clip.mp4"), 3.0 ]
     ]
     evidence_attributes = objects.map do |role, media_type, content_type, key, path, duration|
       bytes = File.binread(path)

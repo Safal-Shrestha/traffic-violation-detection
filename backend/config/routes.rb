@@ -4,7 +4,7 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   # Handle OPTIONS preflight requests in development
-  match '*path', to: 'application#cors_preflight_check', via: :options
+  match "*path", to: "application#cors_preflight_check", via: :options
 
   namespace :api do
     namespace :v1 do
